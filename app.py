@@ -1415,16 +1415,14 @@ OCR 辨識文字：
             
             with col1:
                 if st.button("📝 原音轉文字", use_container_width=True, type="primary"):
-                    # 檢查是否已安裝 whisper
+                    # 使用 OpenAI Whisper API（雲端版本）
                     try:
-                        import whisper
+                        from openai import OpenAI
                         import tempfile
                         import os
                         
-                        # 設定 ffmpeg 路徑
-                        ffmpeg_path = r"C:\Users\User\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-8.0.1-full_build\bin"
-                        if os.path.exists(ffmpeg_path):
-                            os.environ["PATH"] = ffmpeg_path + os.pathsep + os.environ.get("PATH", "")
+                        # 初始化 OpenAI 客戶端
+                        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
                         
                         with st.spinner("🎙️ 正在轉錄音檔..."):
                             # 儲存上傳的音檔到臨時檔案
@@ -1433,32 +1431,31 @@ OCR 辨識文字：
                                 tmp_path = tmp_file.name
                             
                             try:
-                                # 載入 Whisper 模型並轉錄
-                                model = whisper.load_model("base")
-                                result = model.transcribe(tmp_path, language="zh")
+                                # 使用 OpenAI Whisper API 轉錄
+                                with open(tmp_path, "rb") as audio:
+                                    transcript = client.audio.transcriptions.create(
+                                        model="whisper-1",
+                                        file=audio,
+                                        language="zh"
+                                    )
                                 
                                 st.markdown("### ✅ 轉錄結果")
-                                st.markdown(result["text"])
-                                st.session_state.voice_transcription = result["text"]
+                                st.markdown(transcript.text)
+                                st.session_state.voice_transcription = transcript.text
+                                st.caption("💰 費用：約 $0.006/分鐘")
+                                
                             finally:
                                 # 清理臨時檔案
                                 if os.path.exists(tmp_path):
                                     os.unlink(tmp_path)
                     
                     except ImportError:
-                        st.error("🚧 語音轉文字功能需要安裝 openai-whisper")
-                        st.code("pip install openai-whisper", language="bash")
-                        st.markdown("""
-                        **使用說明：**
-                        1. 在終端機執行：`pip install openai-whisper`
-                        2. **必須安裝 ffmpeg**（音檔處理工具）
-                           - Windows: 下載 https://www.gyan.dev/ffmpeg/builds/ 並加入 PATH
-                           - 或使用 chocolatey: `choco install ffmpeg`
-                        3. 本地端免費，但只能在此電腦使用
-                        4. 跨裝置需使用 Whisper API（付費）
-                        """)
+                        st.error("🚧 語音轉文字功能需要安裝 openai 套件")
+                        st.code("pip install openai", language="bash")
                     except Exception as e:
-                        st.error(f"❌ 轉錄失敗：{e}")
+                        st.error(f"❌ 轉錄失敗：{str(e)}")
+                        if "OPENAI_API_KEY" in str(e) or "api_key" in str(e).lower():
+                            st.warning("⚠️ 請設定 OPENAI_API_KEY 環境變數")
                         if "WinError 2" in str(e) or "ffmpeg" in str(e).lower():
                             st.warning("""
                             ⚠️ **ffmpeg 未安裝或未加入 PATH**

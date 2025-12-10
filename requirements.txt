@@ -7,4 +7,4 @@ python-docx
 reportlab
 Pillow
 PyMuPDF
-#OpenAI API Key
+openai>=1.0.0
