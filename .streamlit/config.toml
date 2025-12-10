@@ -1,0 +1,29 @@
+[server]
+# 效能優化設定
+maxUploadSize = 200
+enableCORS = false
+enableXsrfProtection = true
+
+# 減少延遲
+runOnSave = true
+fileWatcherType = "auto"
+
+[browser]
+# 收集使用統計（可選）
+gatherUsageStats = false
+
+[runner]
+# 加快執行速度
+magicEnabled = true
+fastReruns = true
+
+[client]
+# 顯示工具列
+toolbarMode = "auto"
+
+[theme]
+# 使用自訂主題
+primaryColor = "#6b7280"
+backgroundColor = "#f0f2f6"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#1f2937"
