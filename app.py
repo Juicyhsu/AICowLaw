@@ -791,19 +791,15 @@ def render_note():
         
         # 導入新的 Prompt 模板和風格管理器
         from prompt_templates import get_all_style_options, get_style_instruction
-        from custom_style_manager import CustomStyleManager
+        # from custom_style_manager import CustomStyleManager  # 暂時停用，檔案已刪除
         
-        # 初始化風格管理器
-        if 'style_manager' not in st.session_state:
-            st.session_state.style_manager = CustomStyleManager()
+        # 初始化風格管理器（暂時停用）
+        # if 'style_manager' not in st.session_state:
+        #     st.session_state.style_manager = CustomStyleManager()
+        # style_manager = st.session_state.style_manager
         
-        style_manager = st.session_state.style_manager
-        
-        # 載入風格選項（包含使用者自訂）
-        style_presets = get_all_style_options(
-            user_id=st.session_state.user_id,
-            style_manager=style_manager
-        )
+        # 載入風格選項（簡化版）
+        style_presets = get_all_style_options()
         
         # 簡化的風格選擇介面
         col_select, col_manage = st.columns([3, 1])
