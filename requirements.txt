@@ -7,5 +7,4 @@ python-docx
 reportlab
 Pillow
 PyMuPDF
-openai-whisper
 #OpenAI API Key
