@@ -789,20 +789,84 @@ def render_note():
         # AI 生成風格選擇
         st.markdown("### 🎨 AI 筆記風格設定")
         
-        # 導入新的 Prompt 模板和風格管理器
+        # 導入 Prompt 模板
         from prompt_templates import get_all_style_options, get_style_instruction
-        # from custom_style_manager import CustomStyleManager  # 暂時停用，檔案已刪除
         
-        # 初始化風格管理器（暂時停用）
-        # if 'style_manager' not in st.session_state:
-        #     st.session_state.style_manager = CustomStyleManager()
-        # style_manager = st.session_state.style_manager
+        # 從 Airtable 載入使用者自訂風格
+        user_styles = {}
+        try:
+            all_notes = data_manager.get_all_notes(st.session_state.user_id)
+            for note in all_notes:
+                if 'tags' in note and '自訂風格' in note.get('tags', []):
+                    style_name = note.get('title', '').replace('[風格] ', '')
+                    user_styles[f"⭐ {style_name}"] = note.get('content', '')
+        except:
+            pass
         
-        # 載入風格選項（簡化版）
+        # 合併預設風格和使用者風格
         style_presets = get_all_style_options()
+        all_styles = {**style_presets, **user_styles}
         
-        # 簡化的風格選擇介面
-        selected_style = st.selectbox("選擇筆記風格", list(style_presets.keys()), index=0)
+        # 風格選擇介面
+        col_select, col_manage = st.columns([3, 1])
+        
+        with col_select:
+            selected_style = st.selectbox("選擇筆記風格", list(all_styles.keys()), index=0)
+        
+        with col_manage:
+            st.write("")  # 對齊
+            if st.button("⚙️ 管理風格", use_container_width=True, key="toggle_manage_btn"):
+                st.session_state.show_style_manager = not st.session_state.get('show_style_manager', False)
+        
+        # 風格管理面板
+        if st.session_state.get('show_style_manager', False):
+            with st.expander("🗂️ 我的自訂風格", expanded=True):
+                st.markdown("**➕ 新增自訂風格**")
+                with st.form("quick_save_style", clear_on_submit=True):
+                    new_style_name = st.text_input("風格名稱", placeholder="例如：考試衝刺版")
+                    new_style_desc = st.text_area("風格描述", height=80, 
+                                                  placeholder="例如：用條列式整理，每個重點不超過30字，加上記憶口訣")
+                    
+                    if st.form_submit_button("✅ 儲存", use_container_width=True):
+                        if new_style_name and new_style_desc:
+                            if f"⭐ {new_style_name}" in user_styles:
+                                st.error(f"❌ 風格「{new_style_name}」已存在")
+                            else:
+                                data_manager.save_note(
+                                    user_id=st.session_state.user_id,
+                                    title=f"[風格] {new_style_name}",
+                                    content=new_style_desc,
+                                    category="其他",
+                                    tags=['自訂風格'],
+                                    difficulty="中等"
+                                )
+                                st.success(f"✅ 已儲存「{new_style_name}」")
+                                time.sleep(0.5)
+                                st.rerun()
+                        else:
+                            st.warning("⚠️ 請填寫完整資訊")
+                
+                st.markdown("---")
+                st.markdown("**📋 已儲存的風格**")
+                
+                if not user_styles:
+                    st.info("📭 尚無自訂風格")
+                else:
+                    for idx, (style_name, style_desc) in enumerate(user_styles.items()):
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.text(style_name)
+                            st.caption(f"{style_desc[:50]}..." if len(style_desc) > 50 else style_desc)
+                        with col2:
+                            if st.button("🗑️", key=f"del_style_{idx}", help="刪除此風格"):
+                                for note in all_notes:
+                                    if note.get('title') == f"[風格] {style_name.replace('⭐ ', '')}":
+                                        data_manager.delete_note(note['id'], st.session_state.user_id)
+                                        st.success("✅ 已刪除")
+                                        time.sleep(0.3)
+                                        st.rerun()
+                                        break
+                        st.markdown("---")
         
         # 處理風格指示
         if selected_style == "✏️ 自訂風格":
