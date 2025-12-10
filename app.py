@@ -802,58 +802,7 @@ def render_note():
         style_presets = get_all_style_options()
         
         # 簡化的風格選擇介面
-        col_select, col_manage = st.columns([3, 1])
-        
-        with col_select:
-            selected_style = st.selectbox("選擇筆記風格", list(style_presets.keys()), index=0)
-        
-        with col_manage:
-            st.write("")  # 對齊
-            if st.button("⚙️ 管理風格", use_container_width=True, key="toggle_manage_btn"):
-                st.session_state.show_style_manager = not st.session_state.get('show_style_manager', False)
-        
-        # 風格管理面板（摺疊式）
-        if st.session_state.get('show_style_manager', False):
-            with st.expander("🗂️ 我的自訂風格", expanded=True):
-                # 新增風格
-                st.markdown("**➕ 新增自訂風格**")
-                with st.form("quick_save_style", clear_on_submit=True):
-                    new_style_name = st.text_input("風格名稱", placeholder="例如：考試衝刺版")
-                    new_style_desc = st.text_area("風格描述", height=80, 
-                                                  placeholder="例如：用條列式整理，每個重點不超過30字，加上記憶口訣")
-                    
-                    if st.form_submit_button("✅ 儲存", use_container_width=True):
-                        if new_style_name and new_style_desc:
-                            if style_manager.style_exists(st.session_state.user_id, new_style_name):
-                                st.error(f"❌ 風格「{new_style_name}」已存在")
-                            else:
-                                if style_manager.save_style(st.session_state.user_id, new_style_name, new_style_desc):
-                                    st.success(f"✅ 已儲存「{new_style_name}」")
-                                    time.sleep(0.5)
-                                    st.rerun()
-                        else:
-                            st.warning("⚠️ 請填寫完整資訊")
-                
-                st.markdown("---")
-                st.markdown("**📋 已儲存的風格**")
-                
-                styles = style_manager.get_style_info(st.session_state.user_id)
-                
-                if not styles:
-                    st.info("📭 尚無自訂風格")
-                else:
-                    for idx, style in enumerate(styles):
-                        col1, col2 = st.columns([4, 1])
-                        with col1:
-                            st.text(f"⭐ {style['name']}")
-                            st.caption(f"{style['description'][:50]}..." if len(style['description']) > 50 else style['description'])
-                        with col2:
-                            if st.button("🗑️", key=f"del_style_{idx}", help="刪除此風格"):
-                                if style_manager.delete_style(st.session_state.user_id, style['name']):
-                                    st.success(f"✅ 已刪除")
-                                    time.sleep(0.3)
-                                    st.rerun()
-                        st.markdown("---")
+        selected_style = st.selectbox("選擇筆記風格", list(style_presets.keys()), index=0)
         
         # 處理風格指示
         if selected_style == "✏️ 自訂風格":
