@@ -137,8 +137,8 @@ class AICore:
             
             filtered_results = []
             for match in results['matches']:
-                # 降低閾值到 0.3，讓更多結果通過
-                if match['score'] >= 0.3:
+                # 閾值 0.6：只顯示高度相關的結果
+                if match['score'] >= 0.6:
                     filtered_results.append({
                         'score': match['score'],
                         'content': match['metadata'].get('full_content', 
@@ -147,7 +147,7 @@ class AICore:
                     })
             
             filtered_results = filtered_results[:top_k]
-            print(f"✅ 過濾後找到 {len(filtered_results)} 個相關結果（閾值 >= 0.3）")
+            print(f"✅ 過濾後找到 {len(filtered_results)} 個相關結果（閾值 >= 0.6）")
             return filtered_results
             
         except Exception as e:
