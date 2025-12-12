@@ -1946,8 +1946,8 @@ PDF 內容：
                         tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['語音', '原始'],
                         difficulty=voice_difficulty
                     )
-                    st.success("✅ 原始轉錄已儲存！")
-                    st.rerun()
+                    st.success("✅ 原始轉錄已儲存！可到「歷史資料庫」查看")
+                    # 移除 st.rerun() 避免頁面重新載入
             
             # 顯示整理後的筆記（可編輯）
             if 'voice_notes' in st.session_state:
@@ -1971,8 +1971,8 @@ PDF 內容：
                         tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['語音', 'AI整理'],
                         difficulty=voice_difficulty
                     )
-                    st.success("✅ AI 筆記已儲存！")
-                    st.rerun()
+                    st.success("✅ AI 筆記已儲存！可到「歷史資料庫」查看")
+                    # 移除 st.rerun() 避免頁面重新載入
 
 # ==================== AI 互動學習 ====================
 def render_chat():
@@ -2909,26 +2909,43 @@ def render_database():
                                     # 生成 TTS
                                     audio_bytes = asyncio.run(generate_tts_audio(note.get('content', '')))
                                     
-                                    # 使用下載按鈕而非自動播放（避免頁面重新載入）
-                                    st.download_button(
-                                        label="📥 下載語音檔",
-                                        data=audio_bytes,
-                                        file_name=f"{note.get('title', '筆記')}.mp3",
-                                        mime="audio/mp3",
-                                        use_container_width=True,
-                                        key=f"download_tts_{note['id']}"
-                                    )
+                                    # 儲存到 session_state（避免頁面重新載入後消失）
+                                    tts_key = f"tts_audio_{note['id']}"
+                                    st.session_state[tts_key] = {
+                                        'audio': audio_bytes,
+                                        'title': note.get('title', '筆記')
+                                    }
                                     
                                     # 檢查是否有警告（表示使用了備用 TTS）
                                     if w:
                                         for warning in w:
                                             if "備用" in str(warning.message) or "Google TTS" in str(warning.message):
-                                                st.info("ℹ️ 使用 Google TTS 生成（Edge TTS 暫時無法使用）")
-                                    else:
-                                        st.success("✅ 語音生成完成！點擊上方按鈕下載")
+                                                st.session_state[f"{tts_key}_info"] = "使用 Google TTS 生成（Edge TTS 暫時無法使用）"
                                     
                             except Exception as e:
                                 st.error(f"❌ 語音生成失敗：{e}")
+                    
+                    # 顯示下載按鈕（如果語音已生成）
+                    tts_key = f"tts_audio_{note['id']}"
+                    if tts_key in st.session_state:
+                        tts_data = st.session_state[tts_key]
+                        
+                        # 顯示資訊訊息（如果有）
+                        info_key = f"{tts_key}_info"
+                        if info_key in st.session_state:
+                            st.info(f"ℹ️ {st.session_state[info_key]}")
+                        else:
+                            st.success("✅ 語音已生成！")
+                        
+                        # 下載按鈕
+                        st.download_button(
+                            label="📥 下載語音檔",
+                            data=tts_data['audio'],
+                            file_name=f"{tts_data['title']}.mp3",
+                            mime="audio/mp3",
+                            use_container_width=True,
+                            key=f"download_tts_{note['id']}"
+                        )
                     
                     # 下載筆記按鈕 - 格式選擇
                     download_format = st.selectbox(
