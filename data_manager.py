@@ -15,7 +15,7 @@ class DataManager:
     
     def save_note(self, user_id: str, title: str, content: str, category: str = "一般", 
                   tags: list = None, difficulty: str = "中等", test_mode: bool = False) -> dict:
-        """儲存筆記到 Airtable"""
+        """儲存筆記到 Airtable 並加入 Pinecone 向量資料庫"""
         # 測試模式：立即複習 / 正式模式：明天複習
         if test_mode:
             next_review_time = datetime.now() - timedelta(minutes=1)  # 1分鐘前（確保立即出現）
@@ -37,6 +37,27 @@ class DataManager:
             'next_review': next_review_time.isoformat()
         }
         result = self.table.create(note)
+        
+        # 加入 Pinecone 向量資料庫（用於智慧搜尋）
+        try:
+            from ai_core import AICore
+            ai_core = AICore()
+            ai_core.add_to_knowledge_base(
+                content=content,
+                metadata={
+                    'note_id': result['id'],
+                    'user_id': user_id,
+                    'title': title,
+                    'category': category,
+                    'tags': tags if tags else [],
+                    'difficulty': difficulty,
+                    'type': 'note'
+                }
+            )
+            print(f"✅ 筆記已加入 Pinecone 向量資料庫")
+        except Exception as e:
+            print(f"⚠️ 加入 Pinecone 失敗（不影響筆記儲存）: {e}")
+        
         return result['fields']
     
     def get_all_notes(self, user_id: str) -> list:
