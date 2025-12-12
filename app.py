@@ -368,6 +368,7 @@ if not st.session_state.user_id:
                     st.session_state.user_id = user_name
                     st.session_state.logging_in = True
                     st.session_state.show_loading = False
+                    st.session_state.logged_out = False  # 清除登出旗標
                     # 設定 query parameter 以持久化登入狀態
                     st.query_params['user'] = user_name
                     time.sleep(0.3)  # 最小延遲讓用戶看到提示
