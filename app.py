@@ -312,10 +312,13 @@ if 'logging_in' not in st.session_state:
     st.session_state.logging_in = False
 if 'show_loading' not in st.session_state:
     st.session_state.show_loading = False
+if 'logged_out' not in st.session_state:
+    st.session_state.logged_out = False
 
 # 從 query parameter 恢復登入狀態（頁面重新整理時）
+# 但如果剛登出，不要自動登入
 query_params = st.query_params
-if 'user' in query_params and not st.session_state.user_id:
+if 'user' in query_params and not st.session_state.user_id and not st.session_state.logged_out:
     st.session_state.user_id = query_params['user']
 
 # 快速登入，不顯示過渡頁面（避免殘影）
@@ -640,10 +643,12 @@ with st.sidebar:
         st.query_params.update({"page": "review"})
         st.rerun()
     
+    
     # 登出按鈕
     if st.button("🚪 登出", use_container_width=True):
         st.session_state.user_id = None
         st.session_state.current_page = "home"
+        st.session_state.logged_out = True  # 設定登出旗標
         st.query_params.clear()
         st.rerun()
     
