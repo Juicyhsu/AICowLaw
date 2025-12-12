@@ -2367,92 +2367,13 @@ def render_review():
     with col_btn1:
         if st.button("▼ 展開" if not st.session_state.show_review_settings else "▲ 收起", use_container_width=True):
             st.session_state.show_review_settings = not st.session_state.show_review_settings
-            st.rerun()
     
-    # 顯示設定面板
     if st.session_state.show_review_settings:
+        st.markdown("---")
         
-        # 重要提示
-        st.info("ℹ️ **重要提示**：既有筆記的排程不會變動，新設定會在下次複習時生效。只有新的複習才會使用新設定。")
-        
+        # 使用 Airtable 版本的設定管理
         from review_settings import ReviewSettings, PRESET_TEMPLATES
         settings_manager = ReviewSettings(st.session_state.user_id)
-        current_settings = settings_manager.load_settings()
-        active_template = current_settings.get('active_template', 'standard')
-        
-        # 顯示當前啟用的模板
-        if active_template in PRESET_TEMPLATES:
-            active_name = PRESET_TEMPLATES[active_template]["name"]
-        else:
-            custom_templates = current_settings.get("custom_templates", {})
-            if active_template in custom_templates:
-                active_name = f"📝 {custom_templates[active_template]['name']}"
-            else:
-                active_name = "📚 標準複習"
-        
-        st.success(f"✅ **當前啟用模板**：{active_name}")
-        
-        # 取得所有模板
-        all_templates = settings_manager.get_all_templates()
-        
-        # 模板選擇
-        st.markdown("#### 📋 選擇複習模板")
-        
-        # 自訂模板
-        custom_templates = current_settings.get("custom_templates", {})
-        
-        # 左右分欄
-        col_preset, col_custom = st.columns(2)
-        
-        with col_preset:
-            st.markdown("**預設模板**")
-            
-            # 預設模板選項（使用 radio）
-            preset_options = {
-                "intensive": PRESET_TEMPLATES["intensive"]["name"],
-                "standard": PRESET_TEMPLATES["standard"]["name"],
-                "relaxed": PRESET_TEMPLATES["relaxed"]["name"]
-            }
-            
-            # 找到當前選中的預設模板（如果是）
-            if active_template in preset_options:
-                preset_index = list(preset_options.keys()).index(active_template)
-            else:
-                preset_index = 1  # 預設為標準
-            
-            selected_preset = st.radio(
-                "選擇預設模板",
-                options=list(preset_options.keys()),
-                format_func=lambda x: preset_options[x],
-                index=preset_index,
-                key="preset_radio",
-                label_visibility="collapsed"
-            )
-            
-            # 顯示選中的預設模板說明
-            if selected_preset:
-                st.caption(PRESET_TEMPLATES[selected_preset]["description"])
-                with st.expander("📊 查看間隔詳情", expanded=False):
-                    intervals = PRESET_TEMPLATES[selected_preset]["intervals"]
-                    for level, days in intervals.items():
-                        st.markdown(f"**{level}**：{' → '.join([f'{d}天' for d in days])}")
-                
-                # 切換按鈕（如果不是當前啟用的）
-                if selected_preset != active_template:
-                    if st.button("✅ 切換到此模板", key="switch_to_preset", use_container_width=True, type="primary"):
-                        if settings_manager.set_active_template(selected_preset):
-                            st.success(f"✅ 已切換到 {preset_options[selected_preset]}！")
-                            st.rerun()
-        
-        with col_custom:
-            st.markdown("**自訂模板**")
-            
-            if custom_templates:
-                # 使用 radio 按鈕選擇自訂模板
-                custom_keys = list(custom_templates.keys())
-                custom_labels = {key: custom_templates[key]['name'] for key in custom_keys}
-                
-                # 找到當前選中的自訂模板（如果是）
                 if active_template in custom_keys:
                     custom_index = custom_keys.index(active_template)
                 else:
