@@ -2371,40 +2371,113 @@ def render_review():
     if st.session_state.show_review_settings:
         st.markdown("---")
         
-        # 重要提示
-        st.info("ℹ️ **重要提示**：既有筆記的排程不會變動，新設定會在下次複習時生效。只有新的複習才會使用新設定。")
-        
+        # 使用 Airtable 版本的設定管理
         from review_settings import ReviewSettings, PRESET_TEMPLATES
         settings_manager = ReviewSettings(st.session_state.user_id)
-        current_settings = settings_manager.load_settings()
-        active_template = current_settings.get('active_template', 'standard')
-        
-        # 顯示當前啟用的模板
-        if active_template in PRESET_TEMPLATES:
-            active_name = PRESET_TEMPLATES[active_template]["name"]
-        else:
-            custom_templates = current_settings.get("custom_templates", {})
-            if active_template in custom_templates:
-                active_name = f"📝 {custom_templates[active_template]['name']}"
-            else:
-                active_name = "📚 標準複習"
-        
-        st.success(f"✅ **當前啟用模板**：{active_name}")
-        
-        # 取得所有模板
-        all_templates = settings_manager.get_all_templates()
-        
-        # 模板選擇
-        st.markdown("#### 📋 選擇複習模板")
-        
-        # 自訂模板
-        custom_templates = current_settings.get("custom_templates", {})
-        
-        # 左右分欄
-        col_preset, col_custom = st.columns(2)
-        
-        with col_preset:
-            st.markdown("**預設模板**")
+                if active_template in custom_keys:
+                    custom_index = custom_keys.index(active_template)
+                else:
+                    custom_index = 0
+                
+                selected_custom = st.radio(
+                    "選擇自訂模板",
+                    options=custom_keys,
+                    format_func=lambda x: f"📝 {custom_labels[x]}",
+                    index=custom_index if active_template in custom_keys else None,
+                    key="custom_radio",
+                    label_visibility="collapsed"
+                )
+                
+                # 顯示選中的自訂模板詳情
+                if selected_custom:
+                    template = custom_templates[selected_custom]
+                    
+                    with st.expander("📊 查看間隔詳情", expanded=False):
+                        intervals = template["intervals"]
+                        for level, days in intervals.items():
+                            st.markdown(f"**{level}**：{' → '.join([f'{d}天' for d in days])}")
+                    
+                    # 操作按鈕
+                    btn_col1, btn_col2, btn_col3 = st.columns(3)
+                    
+                    with btn_col1:
+                        # 切換按鈕（如果不是當前啟用的）
+                        if selected_custom != active_template:
+                            if st.button("切換", key="switch_to_custom", use_container_width=True):
+                                if settings_manager.set_active_template(selected_custom):
+                                    st.success(f"✅ 已切換到 {template['name']}！")
+                                    st.rerun()
+                    
+                    with btn_col2:
+                        # 編輯按鈕
+                        if st.button("✏️ 編輯", key="edit_custom", use_container_width=True):
+                            st.session_state.editing_template = selected_custom
+                            st.rerun()
+                    
+                    with btn_col3:
+                        # 刪除按鈕
+                        if st.button("🗑️", key="delete_custom", use_container_width=True):
+                            if settings_manager.delete_custom_template(selected_custom):
+                                st.success("✅ 模板已刪除！")
+                                st.rerun()
+                
+                # 編輯模板
+                if 'editing_template' in st.session_state and st.session_state.editing_template in custom_templates:
+                    st.markdown("---")
+                    st.markdown("**✏️ 編輯模板**")
+                    
+                    editing_key = st.session_state.editing_template
+                    editing_template = custom_templates[editing_key]
+                    
+                    new_name = st.text_input(
+                        "模板名稱",
+                        value=editing_template['name'],
+                        key="edit_template_name"
+                    )
+                    
+                    st.info("💡 **提示**：輸入每次複習的間隔天數，用逗號分隔。例如：2,6,14,28,60\n\n**長度不限**，代表複習次數。")
+                    
+                    edited_intervals = {}
+                    levels = ["完全精通", "很熟悉", "大致記得", "有點印象", "完全不記得"]
+                    intervals_valid = True
+                    
+                    for level in levels:
+                        current_intervals = editing_template['intervals'].get(level, [2, 6, 14, 28, 60])
+                        interval_str = ','.join([str(i) for i in current_intervals])
+                        
+                        user_input = st.text_input(
+                            f"{level}",
+                            value=interval_str,
+                            key=f"edit_interval_{level}",
+                            help="輸入間隔天數，用逗號分隔（1-60天，長度不限）"
+                        )
+                        
+                        try:
+                            intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
+                            if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
+                                edited_intervals[level] = intervals
+                            else:
+                                st.error(f"❌ {level}：間隔必須在1-60天之間")
+                                intervals_valid = False
+                        except:
+                            st.error(f"❌ {level}：格式錯誤，請使用逗號分隔的數字")
+                            intervals_valid = False
+                    
+                    edit_col1, edit_col2 = st.columns(2)
+                    with edit_col1:
+                        if st.button("💾 儲存修改", use_container_width=True, type="primary", key="save_edit_template"):
+                            if not new_name:
+                                st.error("❌ 請輸入模板名稱")
+                            elif new_name != editing_template['name'] and new_name in [t['name'] for t in custom_templates.values()]:
+                                st.error("❌ 模板名稱已存在")
+                            elif not intervals_valid:
+                                st.error("❌ 請修正間隔設定錯誤")
+                            else:
+                                # 刪除舊模板，新增修改後的模板
+                                settings_manager.delete_custom_template(editing_key)
+                                if settings_manager.add_custom_template(new_name, edited_intervals):
+                                    # 如果是當前啟用的模板，更新啟用狀態
+                                    if active_template == editing_key:
                                         settings_manager.set_active_template(new_name)
                                     st.session_state.editing_template = None
                                     st.success("✅ 模板已更新！")
