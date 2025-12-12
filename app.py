@@ -2395,73 +2395,8 @@ def render_review():
         
         st.markdown("---")
         st.info("ℹ️ 目前使用標準複習模式。如需自訂間隔，請參考 AIRTABLE_SETTINGS_SETUP.md 建立 ReviewSettings Table。")
-                                        settings_manager.set_active_template(new_name)
-                                    st.session_state.editing_template = None
-                                    st.success("✅ 模板已更新！")
-                                    st.rerun()
-                                else:
-                                    st.error("❌ 更新失敗")
-                    
-                    with edit_col2:
-                        if st.button("❌ 取消", use_container_width=True, key="cancel_edit_template"):
-                            st.session_state.editing_template = None
-                            st.rerun()
-            else:
-                st.info("尚無自訂模板")
-            
-            # 新增自訂模板（移除上方分隔線）
-            st.markdown("")  # 間距
-            st.markdown("**➕ 新增自訂模板**")
-            
-            with st.expander("點擊展開新增"):
-                new_template_name = st.text_input(
-                    "模板名稱",
-                    placeholder="例如：我的考前衝刺",
-                    key="new_template_name"
-                )
-                
-                st.info("💡 **提示**：輸入每次複習的間隔天數，用逗號分隔。例如：2,6,14,28,60\n\n**長度不限**，代表複習次數。可以設定任意多次，例如 10 次、20 次都可以。")
-                
-                custom_intervals = {}
-                levels = ["完全精通", "很熟悉", "大致記得", "有點印象", "完全不記得"]
-                intervals_valid = True
-                
-                for level in levels:
-                    user_input = st.text_input(
-                        f"{level}",
-                        value="2,6,14,28,60",
-                        key=f"new_interval_{level}",
-                        help="輸入間隔天數，用逗號分隔（1-60天，長度不限）"
-                    )
-                    
-                    try:
-                        intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
-                        if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
-                            custom_intervals[level] = intervals
-                        else:
-                            st.error(f"❌ {level}：間隔必須在1-60天之間")
-                            intervals_valid = False
-                    except:
-                        st.error(f"❌ {level}：格式錯誤，請使用逗號分隔的數字")
-                        intervals_valid = False
-                
-                if st.button("💾 儲存新模板", use_container_width=True, type="primary", key="save_new_template"):
-                    if not new_template_name:
-                        st.error("❌ 請輸入模板名稱")
-                    elif new_template_name in PRESET_TEMPLATES:
-                        st.error("❌ 模板名稱不能與預設模板相同")
-                    elif new_template_name in custom_templates:
-                        st.error("❌ 模板名稱已存在")
-                    elif not intervals_valid:
-                        st.error("❌ 請修正間隔設定錯誤")
-                    else:
-                        if settings_manager.add_custom_template(new_template_name, custom_intervals):
-                            st.success(f"✅ 模板「{new_template_name}」已新增！")
-                            st.rerun()
-                        else:
-                            st.error("❌ 新增失敗")
-        
-        st.markdown("---")
+    
+    st.markdown("---")
     
     # 記憶程度篩選
     st.markdown("### 🎯 篩選條件")
