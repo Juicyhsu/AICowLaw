@@ -60,8 +60,10 @@ class AICore:
             print("⏳ 等待索引初始化...")
             time.sleep(10)
         
-        self.index = self.pc.Index(index_name)
+        # 連接到索引並返回
+        index = self.pc.Index(index_name)
         print(f"✅ Pinecone 索引已連接: {index_name}")
+        return index
     
     def generate_embedding(self, text: str) -> List[float]:
         """生成文字嵌入向量"""
