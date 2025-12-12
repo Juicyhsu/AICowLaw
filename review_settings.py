@@ -1,14 +1,14 @@
 """
-複習間隔設定管理 - Airtable 雲端版
-支援本地端和雲端同步
+複習間隔設定模組 - Airtable 雲端版（保留原UI介面）
+管理使用者的複習間隔設定，支援預設模板和多個自訂模板
 """
 
 import json
-from typing import Dict
+from typing import Dict, List
 from config import Config
 from pyairtable import Api
 
-# 預設模板定義（向後相容）
+# 預設模板定義
 PRESET_TEMPLATES = {
     "intensive": {
         "name": "🔥 密集複習",
@@ -46,29 +46,12 @@ PRESET_TEMPLATES = {
 }
 
 class ReviewSettings:
-    """複習間隔設定管理器（Airtable 版本）"""
-    
-    # 預設間隔設定
-    DEFAULT_INTERVALS = {
-        '完全精通': [6, 14, 28, 60, 60],
-        '很熟悉': [4, 10, 20, 40, 60],
-        '大致記得': [2, 6, 14, 28, 60],
-        '有點印象': [2, 4, 8, 16, 30],
-        '完全不記得': [2]
-    }
+    """複習設定管理類 - Airtable 版本（保留原UI功能）"""
     
     def __init__(self, user_id: str):
-        """
-        初始化設定管理器
-        
-        Args:
-            user_id: 使用者 ID
-        """
         self.user_id = user_id
-        self.api = Api(Config.AIRTABLE_API_KEY)
-        
-        # 使用 ReviewSettings Table（需要在 Airtable 建立）
         try:
+            self.api = Api(Config.AIRTABLE_API_KEY)
             self.table = self.api.table(Config.AIRTABLE_BASE_ID, 'ReviewSettings')
         except Exception as e:
             print(f"⚠️ ReviewSettings Table 不存在，將使用預設設定：{e}")
@@ -80,21 +63,15 @@ class ReviewSettings:
             return self._get_default_settings()
         
         try:
-            # 從 Airtable 查詢該使用者的設定
             formula = f"{{user_id}}='{self.user_id}'"
             records = self.table.all(formula=formula)
             
             if records:
-                # 取得第一筆記錄
                 settings_data = records[0]['fields'].get('settings', '{}')
                 settings = json.loads(settings_data)
-                print(f"✅ 從 Airtable 載入 {self.user_id} 的設定")
                 return settings
             else:
-                # 沒有設定，使用預設值
-                print(f"ℹ️ {self.user_id} 尚無自訂設定，使用預設值")
                 return self._get_default_settings()
-                
         except Exception as e:
             print(f"⚠️ 載入設定失敗，使用預設值：{e}")
             return self._get_default_settings()
@@ -106,27 +83,21 @@ class ReviewSettings:
             return False
         
         try:
-            # 檢查是否已有記錄
             formula = f"{{user_id}}='{self.user_id}'"
             records = self.table.all(formula=formula)
             
             settings_json = json.dumps(settings, ensure_ascii=False)
             
             if records:
-                # 更新現有記錄
                 record_id = records[0]['id']
                 self.table.update(record_id, {'settings': settings_json})
-                print(f"✅ 更新 {self.user_id} 的設定到 Airtable")
             else:
-                # 建立新記錄
                 self.table.create({
                     'user_id': self.user_id,
                     'settings': settings_json
                 })
-                print(f"✅ 建立 {self.user_id} 的設定到 Airtable")
             
             return True
-            
         except Exception as e:
             print(f"❌ 儲存設定失敗：{e}")
             return False
@@ -134,65 +105,90 @@ class ReviewSettings:
     def _get_default_settings(self) -> Dict:
         """取得預設設定"""
         return {
-            'intervals': self.DEFAULT_INTERVALS.copy(),
-            'mode': '標準複習'
+            "active_template": "standard",
+            "custom_templates": {}
         }
     
-    def get_intervals(self, memory_level: str) -> list:
-        """
-        取得指定記憶程度的間隔序列
-        
-        Args:
-            memory_level: 記憶程度（中文）
-        
-        Returns:
-            間隔序列（天數列表）
-        """
+    def get_intervals(self, memory_level: str) -> List[int]:
+        """取得指定記憶程度的間隔序列"""
         settings = self.load_settings()
-        intervals = settings.get('intervals', {})
+        active_template = settings.get("active_template", "standard")
         
-        # 取得該記憶程度的間隔，如果沒有則使用預設值
-        return intervals.get(memory_level, self.DEFAULT_INTERVALS.get(memory_level, [2]))
+        # 檢查是否為預設模板
+        if active_template in PRESET_TEMPLATES:
+            intervals = PRESET_TEMPLATES[active_template]["intervals"]
+        else:
+            # 自訂模板
+            custom_templates = settings.get("custom_templates", {})
+            if active_template in custom_templates:
+                intervals = custom_templates[active_template]["intervals"]
+            else:
+                # 找不到，使用標準模式
+                intervals = PRESET_TEMPLATES["standard"]["intervals"]
+        
+        return intervals.get(memory_level, [2, 6, 14, 28, 60])
     
-    def update_intervals(self, memory_level: str, intervals: list) -> bool:
-        """
-        更新指定記憶程度的間隔序列
+    def get_all_templates(self) -> Dict:
+        """取得所有可用的模板（預設 + 自訂）"""
+        settings = self.load_settings()
+        custom_templates = settings.get("custom_templates", {})
         
-        Args:
-            memory_level: 記憶程度
-            intervals: 新的間隔序列
+        # 合併預設和自訂模板
+        all_templates = PRESET_TEMPLATES.copy()
+        all_templates.update(custom_templates)
         
-        Returns:
-            是否成功
-        """
+        return all_templates
+    
+    def set_active_template(self, template_id: str) -> bool:
+        """設定啟用的模板"""
+        settings = self.load_settings()
+        settings["active_template"] = template_id
+        return self.save_settings(settings)
+    
+    def add_custom_template(self, template_name: str, intervals: Dict[str, List[int]], 
+                           description: str = "") -> bool:
+        """新增自訂模板"""
         settings = self.load_settings()
         
-        if 'intervals' not in settings:
-            settings['intervals'] = self.DEFAULT_INTERVALS.copy()
+        if "custom_templates" not in settings:
+            settings["custom_templates"] = {}
         
-        settings['intervals'][memory_level] = intervals
+        # 使用名稱作為 key
+        template_key = template_name
+        settings["custom_templates"][template_key] = {
+            "name": template_name,
+            "description": description,
+            "intervals": intervals
+        }
         
         return self.save_settings(settings)
     
-    def reset_to_default(self) -> bool:
-        """重置為預設設定"""
-        return self.save_settings(self._get_default_settings())
-    
-    def get_all_intervals(self) -> Dict[str, list]:
-        """取得所有記憶程度的間隔設定"""
+    def delete_custom_template(self, template_key: str) -> bool:
+        """刪除自訂模板"""
         settings = self.load_settings()
-        return settings.get('intervals', self.DEFAULT_INTERVALS.copy())
+        
+        if "custom_templates" in settings and template_key in settings["custom_templates"]:
+            del settings["custom_templates"][template_key]
+            
+            # 如果刪除的是當前啟用的模板，切換到標準模式
+            if settings.get("active_template") == template_key:
+                settings["active_template"] = "standard"
+            
+            return self.save_settings(settings)
+        
+        return False
     
-    def update_all_intervals(self, all_intervals: Dict[str, list]) -> bool:
-        """
-        更新所有間隔設定
-        
-        Args:
-            all_intervals: 所有記憶程度的間隔設定
-        
-        Returns:
-            是否成功
-        """
+    def update_custom_template(self, template_key: str, name: str, intervals: Dict[str, List[int]],
+                              description: str = "") -> bool:
+        """更新自訂模板"""
         settings = self.load_settings()
-        settings['intervals'] = all_intervals
-        return self.save_settings(settings)
+        
+        if "custom_templates" in settings and template_key in settings["custom_templates"]:
+            settings["custom_templates"][template_key] = {
+                "name": name,
+                "description": description,
+                "intervals": intervals
+            }
+            return self.save_settings(settings)
+        
+        return False

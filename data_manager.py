@@ -34,7 +34,8 @@ class DataManager:
             'review_count': 0,
             'ease_factor': Config.EASE_FACTOR_DEFAULT,
             'interval': 0,
-            'next_review': next_review_time.isoformat()
+            'next_review': next_review_time.isoformat(),
+            'created_at': datetime.now().isoformat()  # 加入建立時間
         }
         result = self.table.create(note)
         
