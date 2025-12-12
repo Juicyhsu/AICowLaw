@@ -2909,22 +2909,24 @@ def render_database():
                                     # 生成 TTS
                                     audio_bytes = asyncio.run(generate_tts_audio(note.get('content', '')))
                                     
+                                    # 使用下載按鈕而非自動播放（避免頁面重新載入）
+                                    st.download_button(
+                                        label="📥 下載語音檔",
+                                        data=audio_bytes,
+                                        file_name=f"{note.get('title', '筆記')}.mp3",
+                                        mime="audio/mp3",
+                                        use_container_width=True,
+                                        key=f"download_tts_{note['id']}"
+                                    )
+                                    
                                     # 檢查是否有警告（表示使用了備用 TTS）
                                     if w:
                                         for warning in w:
-                                            if "Edge TTS 失敗" in str(warning.message):
-                                                st.info("ℹ️ Edge TTS 暫時無法使用，已自動切換到 Google TTS")
-                                
-                                # 提供播放和下載
-                                st.success("✅ 語音生成成功！")
-                                st.audio(audio_bytes, format='audio/mp3')
-                                st.download_button(
-                                    label="📥 下載語音",
-                                    data=audio_bytes,
-                                    file_name=f"{note.get('title', 'note')}.mp3",
-                                    mime="audio/mp3",
-                                    key=f"download_audio_{note['id']}"
-                                )
+                                            if "備用" in str(warning.message) or "Google TTS" in str(warning.message):
+                                                st.info("ℹ️ 使用 Google TTS 生成（Edge TTS 暫時無法使用）")
+                                    else:
+                                        st.success("✅ 語音生成完成！點擊上方按鈕下載")
+                                    
                             except Exception as e:
                                 st.error(f"❌ 語音生成失敗：{e}")
                     
