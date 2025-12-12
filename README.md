@@ -1,311 +1,231 @@
-# ⚖️ LexBoost Bar 法考加速 - AI 學習系統
+# 🎓 LexBoost Bar - AI 法律學習助手
 
-> 專為律師考試設計的智慧學習平台  
-> 支援多使用者、雲端同步、AI 問答
+> 專為法律考生打造的智慧複習系統，結合 AI 生成、間隔重複記憶法與雲端同步
+
+[![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=flat&logo=Streamlit&logoColor=white)](https://streamlit.io/)
+[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
 
-## 🚀 快速開始（3 步驟）
+## ✨ 核心功能
 
-### 1. 安裝依賴
+### 📝 AI 智慧生成
+- **筆記生成**：輸入主題，AI 自動生成結構化法律筆記
+- **心智圖**：視覺化法律概念關聯
+- **法律體系圖**：完整法律架構展示
+- **語音朗讀**：支援 Edge TTS，隨時隨地聽筆記
+
+### 🔄 智慧複習系統
+- **間隔重複演算法**：基於 SM-2，科學安排複習時間
+- **自訂複習模板**：
+  - 🔥 密集複習（考前衝刺）
+  - 📚 標準複習（日常學習）
+  - 🌟 輕鬆複習（長期鞏固）
+  - ✏️ 自訂模板（完全個人化）
+- **熟悉度追蹤**：5 級熟悉度管理
+- **複習提醒**：自動計算下次複習時間
+
+### 📊 資料管理
+- **雲端同步**：Airtable 雲端儲存
+- **向量搜尋**：Pinecone 語義搜尋
+- **歷史資料庫**：完整筆記管理與編輯
+- **匯出功能**：支援 PDF、Word、Markdown
+
+### 🎨 個人化設定
+- **自訂風格**：可調整 UI 配色
+- **複習間隔設定**：完全自訂每個熟悉度的間隔序列
+- **多模板管理**：新增、編輯、刪除自訂模板
+
+---
+
+## 🚀 快速開始
+
+### 環境需求
+- Python 3.8+
+- Streamlit
+- Google Gemini API
+- Airtable API
+- Pinecone API
+
+### 安裝步驟
+
+1. **Clone 專案**
+```bash
+git clone https://github.com/Juicyhsu/AICowLaw.git
+cd AICowLaw
+```
+
+2. **安裝依賴**
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. 設定環境變數
+3. **設定環境變數**
+
 建立 `.env` 檔案：
-```bash
-GEMINI_API_KEY=你的_Gemini_API_金鑰
-PINECONE_API_KEY=你的_Pinecone_API_金鑰
-AIRTABLE_API_KEY=你的_Airtable_API_金鑰
-AIRTABLE_BASE_ID=你的_Airtable_Base_ID
+```env
+GEMINI_API_KEY=your_gemini_api_key
+AIRTABLE_API_KEY=your_airtable_api_key
+AIRTABLE_BASE_ID=your_airtable_base_id
+PINECONE_API_KEY=your_pinecone_api_key
+PINECONE_ENVIRONMENT=your_pinecone_environment
 ```
 
-**如何取得 API 金鑰？** → 請參考 [部署指南](./DEPLOYMENT.md)
-
-### 3. 啟動系統
+4. **啟動應用**
 ```bash
 streamlit run app.py
 ```
 
-瀏覽器會自動開啟 `http://localhost:8501`
-
----
-
-## 📁 專案結構
-
+5. **訪問應用**
 ```
-legal-exam-ai/
-├── app.py                      # Streamlit 主程式
-├── config.py                   # 系統配置
-├── ai_core.py                  # AI 核心（Gemini + Pinecone）
-├── data_manager.py             # 資料管理（Airtable）
-├── prompt_templates.py         # AI 提示詞模板
-├── requirements.txt            # Python 依賴
-├── .env                        # 環境變數（需自行建立）
-├── .streamlit/                 # Streamlit 配置
-│   └── config.toml
-└── README.md                   # 本檔案
+http://localhost:8501
 ```
 
 ---
 
-## 🎯 核心功能
+## 📖 使用指南
 
-### 1. 📝 AI 筆記生成
-- 三種筆記類型：重點整理 / 考點分析 / 案例解析
-- 自動分類標籤
-- 難度評估
+### 1. 建立筆記
+- 進入「📝 建立筆記」頁面
+- 輸入法律主題或上傳 PDF
+- AI 自動生成筆記
+- 可生成心智圖、法律體系圖
+- 支援語音朗讀
 
-### 2. 🔍 智慧搜尋
-- 語義搜尋（理解問題意圖）
-- 向量資料庫（Pinecone）
-- 支援分類篩選
+### 2. 複習筆記
+- 進入「🔄 智慧複習推薦」
+- 系統自動推薦今日待複習筆記
+- 選擇熟悉度（完全不記得 → 完全精通）
+- 系統自動計算下次複習時間
 
-### 3. 💬 AI 互動學習
-- **參考書模式** - RAG 問答（搜尋知識庫後回答）
-- **蘇格拉底模式** - 引導式提問
-- **爭點搶答遊戲** - 測驗模式
+### 3. 自訂複習間隔
+- 點擊「⚙️ 複習設定」
+- 選擇預設模板或建立自訂模板
+- 設定每個熟悉度的間隔序列
+- 例如：`1,3,7,14,30,60`（天數）
 
-### 4. 🔄 智慧複習
-- SuperMemo SM-2 演算法
-- 個人化複習排程
-- 記憶追蹤
-
-### 5. 👥 多使用者支援
-- 獨立帳號系統
-- 資料完全隔離
-- 雲端同步（Airtable）
-
----
-
-## 🗄️ 資料庫架構
-
-### Airtable（雲端資料庫）
-**優點**：
-- ✅ 多使用者支援
-- ✅ 雲端同步
-- ✅ 免費額度充足（1,200 筆記錄）
-- ✅ 部署後資料不會遺失
-
-**Table 結構**：`Notes`
-- `user_id` - 使用者ID
-- `title` - 標題
-- `content` - 內容
-- `category` - 科目分類
-- `tags` - 標籤
-- `difficulty` - 難度
-- `review_count` - 複習次數
-- `ease_factor` - 記憶因子
-- `interval` - 複習間隔
-- `next_review` - 下次複習時間
-- `last_reviewed` - 最後複習時間
-
-### Pinecone（向量資料庫）
-- 儲存筆記的嵌入向量
-- 用於語義搜尋
-- 免費額度：10萬向量
+### 4. 管理筆記
+- 進入「📚 歷史資料庫」
+- 查看所有筆記
+- 編輯、刪除、調整熟悉度
+- 查看下次複習時間
 
 ---
 
-## 🚢 部署到線上
+## 🛠️ 技術架構
 
-### Streamlit Community Cloud（推薦）
+### 前端
+- **Streamlit**：Web 應用框架
+- **自訂 CSS**：個人化 UI 設計
 
-**完全免費 + 自動部署**
+### 後端
+- **Google Gemini**：AI 內容生成
+- **Airtable**：雲端資料庫
+- **Pinecone**：向量搜尋引擎
+- **Edge TTS**：文字轉語音
 
-#### 快速步驟：
-1. 推送程式碼到 GitHub
-2. 前往 https://streamlit.io/cloud
-3. 連接 GitHub Repository
-4. 在 Secrets 設定 API 金鑰
-5. 點擊 Deploy
-
-**詳細步驟** → 請參考 [部署指南](./DEPLOYMENT.md)
-
----
-
-## 🔧 配置說明
-
-### 科目列表
-編輯 `config.py` 的 `SUBJECTS`：
-```python
-SUBJECTS = [
-    "民法", "民訴法", "刑法", "刑訴法", "憲法", "行政法",
-    # ... 可自行新增
-]
-```
-
-### 使用者管理
-編輯 `app.py` 的 `USER_PASSWORDS`：
-```python
-USER_PASSWORDS = {
-    "九水": "13134",
-    "使用者A": "a",
-    # 新增使用者
-}
-```
-
-### AI 參數調整
-編輯 `config.py`：
-```python
-GEMINI_MODEL = 'gemini-2.5-flash'  # AI 模型
-MAX_SEARCH_RESULTS = 5              # 搜尋結果數量
-SIMILARITY_THRESHOLD = 0.75         # 相似度門檻
-```
+### 核心模組
+- `app.py`：主應用程式
+- `ai_core.py`：AI 生成邏輯
+- `data_manager.py`：資料管理
+- `review_settings.py`：複習間隔設定
+- `prompt_templates.py`：AI 提示詞模板
 
 ---
 
-## 💡 使用建議
+## 📦 部署
 
-### 第一次使用
-1. 建立 20-30 條基礎筆記
-2. 勾選「加入知識庫」
-3. 測試搜尋功能
-4. 開始複習排程
+### Zeabur 部署（推薦）
 
-### 日常使用
-- **上午**：完成待複習筆記
-- **下午**：整理新內容，生成筆記
-- **晚上**：使用 AI 問答測試
-- **每週**：查看學習統計
+1. 推送到 GitHub
+2. 連接 Zeabur 到 GitHub
+3. 選擇專案並部署
+4. 設定環境變數
+5. 完成！
 
-### 複習評估標準
-- **再次** - 完全想不起來
-- **困難** - 想很久才想起
-- **良好** - 3-5 秒內想起
-- **容易** - 立即想起
+詳細步驟請參考：[ZEABUR_DEPLOYMENT.md](ZEABUR_DEPLOYMENT.md)
 
----
+### 其他平台
+- Google Cloud Platform
+- Heroku
+- Railway
 
-## 🐛 常見問題
-
-### Q: 第一次啟動很慢？
-A: 正常現象，需要初始化 AI 系統（連接 Gemini + Pinecone）
-
-### Q: 搜尋結果不準確？
-A: 
-1. 確保知識庫有足夠資料（至少 10 則）
-2. 嘗試不同的問法
-3. 降低 `SIMILARITY_THRESHOLD`
-
-### Q: 資料會遺失嗎？
-A: 不會！資料儲存在 Airtable 雲端，即使重新部署也不會遺失
-
-### Q: 可以多人使用嗎？
-A: 可以！每個使用者有獨立的 `user_id`，資料完全隔離
+詳細比較請參考：[DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
 
 ---
 
-## 📊 技術架構
+## 🎯 複習間隔設定
 
-```
-前端 (Streamlit)
-    ↓
-業務邏輯 (app.py)
-    ↓
-    ├─→ AI 核心 (ai_core.py)
-    │     ├─ Gemini API (問答、筆記生成)
-    │     └─ Pinecone (向量搜尋)
-    │
-    └─→ 資料管理 (data_manager.py)
-          └─ Airtable (雲端資料庫)
-```
+### 預設模板
 
-### 核心技術
-- **RAG** - Retrieval-Augmented Generation
-- **向量搜尋** - 語義理解
-- **SM-2 演算法** - 間隔重複學習
-- **多使用者架構** - 資料隔離
+**🔥 密集複習**（考前衝刺）
+- 完全精通：3 → 7 → 14 → 30 → 60 天
+- 很熟悉：2 → 5 → 10 → 20 → 40 天
+- 大致記得：1 → 3 → 7 → 14 → 30 天
 
----
+**📚 標準複習**（日常學習）
+- 完全精通：6 → 14 → 28 → 60 → 60 天
+- 很熟悉：4 → 10 → 20 → 40 → 60 天
+- 大致記得：2 → 6 → 14 → 28 → 60 天
 
-## 📦 依賴套件
+**🌟 輕鬆複習**（長期鞏固）
+- 完全精通：7 → 21 → 45 → 60 → 60 天
+- 很熟悉：5 → 14 → 30 → 60 → 60 天
+- 大致記得：3 → 7 → 14 → 30 → 60 天
 
-```txt
-streamlit>=1.28.0
-google-generativeai>=0.3.0
-pinecone-client>=2.2.0
-python-dotenv>=1.0.0
-pyairtable>=2.1.0
-PyMuPDF>=1.23.0
-gTTS>=2.4.0
-python-docx>=1.1.0
-```
+### 自訂模板
+完全自訂每個熟悉度的間隔序列，長度不限！
 
 ---
 
-## 🔐 安全性
+## 📝 更新日誌
 
-### ⚠️ 注意事項
-- ❌ 不要把 `.env` 推送到 GitHub
-- ❌ 不要在程式碼中寫死 API 金鑰
-- ✅ 使用 `.gitignore` 排除敏感檔案
-- ✅ 在 Streamlit Cloud 使用 Secrets 管理
+### v2.0.0 (2025-12-12)
+- ✨ 新增自訂複習間隔設定功能
+- ✨ 支援多個自訂模板管理
+- ✨ 新增模板編輯功能
+- ✨ 資料庫顯示優化（建立時間、下次複習時間）
+- ✨ 複習推薦頁面排序優化
+- 🐛 修正語音生成 asyncio 錯誤
+- 🐛 修正複習計數器同步問題
 
-### .gitignore 範例
-```
-.env
-__pycache__/
-*.pyc
-.streamlit/secrets.toml
-test.mp3
-*.backup*
-```
-
----
-
-## 🎓 學習資源
-
-- **Streamlit 文件** - https://docs.streamlit.io
-- **Gemini API** - https://ai.google.dev/docs
-- **Pinecone 文件** - https://docs.pinecone.io
-- **Airtable API** - https://airtable.com/developers/web/api/introduction
-- **SM-2 演算法** - https://www.supermemo.com/en/archives1990-2015/english/ol/sm2
-
----
-
-## 📝 版本資訊
-
-**當前版本**：v2.1  
-**最後更新**：2025-12-10  
-**開發團隊**：JUICY  
-
-### 更新日誌
-- v2.1 (2025-12-10) - 修復登入UI、計數器、對話框問題
-- v2.0 (2025-11-11) - 完整實戰版，支援多使用者
-- v1.0 (2025-10-01) - 初始版本
+### v1.0.0
+- 🎉 初始版本發布
+- ✨ AI 筆記生成
+- ✨ 智慧複習系統
+- ✨ 雲端同步
+- ✨ 向量搜尋
 
 ---
 
 ## 🤝 貢獻
 
-歡迎提交 Issue 或 Pull Request！
+歡迎提交 Issue 和 Pull Request！
 
 ---
 
 ## 📄 授權
 
-MIT License - 自由使用、修改、分發
+MIT License
 
 ---
 
-## 🚀 準備好開始了嗎？
+## 👨‍💻 作者
 
-```bash
-streamlit run app.py
-```
-
-**Let's make law learning smarter! ⚖️**
+**Juicy Hsu**
+- GitHub: [@Juicyhsu](https://github.com/Juicyhsu)
 
 ---
 
-## 📚 相關文件
+## 🙏 致謝
 
-- [部署指南](./DEPLOYMENT.md) - 詳細的部署步驟和 Airtable 設定
-- [API 文件](./API.md) - API 使用說明（如果需要）
-- [開發指南](./DEVELOPMENT.md) - 開發者文件（如果需要）
+- Google Gemini API
+- Streamlit
+- Airtable
+- Pinecone
+- Edge TTS
 
 ---
 
-**有問題？** 請查看部署指南或聯繫開發團隊！
+**祝您考試順利！🎓**
