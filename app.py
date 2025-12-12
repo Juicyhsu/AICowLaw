@@ -2374,28 +2374,27 @@ def render_review():
         # 使用 Airtable 版本的設定管理
         from review_settings import ReviewSettings, PRESET_TEMPLATES
         settings_manager = ReviewSettings(st.session_state.user_id)
-                if active_template in custom_keys:
-                    custom_index = custom_keys.index(active_template)
-                else:
-                    custom_index = 0
-                
-                selected_custom = st.radio(
-                    "選擇自訂模板",
-                    options=custom_keys,
-                    format_func=lambda x: f"📝 {custom_labels[x]}",
-                    index=custom_index if active_template in custom_keys else None,
-                    key="custom_radio",
-                    label_visibility="collapsed"
-                )
-                
-                # 顯示選中的自訂模板詳情
-                if selected_custom:
-                    template = custom_templates[selected_custom]
-                    
-                    with st.expander("📊 查看間隔詳情", expanded=False):
-                        intervals = template["intervals"]
-                        for level, days in intervals.items():
-                            st.markdown(f"**{level}**：{' → '.join([f'{d}天' for d in days])}")
+        
+        # 顯示預設模板選項
+        st.markdown("#### 📚 預設複習模板")
+        
+        template_options = {
+            "intensive": "🔥 密集複習（適合考前衝刺）",
+            "standard": "📚 標準複習（平衡的複習頻率）",
+            "relaxed": "🌟 輕鬆複習（間隔較長）"
+        }
+        
+        # 簡化版：只顯示預設模板說明
+        for template_id, template_name in template_options.items():
+            with st.expander(template_name):
+                template_data = PRESET_TEMPLATES[template_id]
+                st.markdown(f"**說明**：{template_data['description']}")
+                st.markdown("**間隔設定**：")
+                for level, intervals in template_data['intervals'].items():
+                    st.markdown(f"- {level}：{' → '.join(map(str, intervals))} 天")
+        
+        st.markdown("---")
+        st.info("ℹ️ 目前使用標準複習模式。如需自訂間隔，請參考 AIRTABLE_SETTINGS_SETUP.md 建立 ReviewSettings Table。")
                     
                     # 操作按鈕
                     btn_col1, btn_col2, btn_col3 = st.columns(3)
