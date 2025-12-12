@@ -2319,26 +2319,34 @@ def render_search():
     if st.button("🔍 開始搜尋", type="primary", use_container_width=True) and query:
         with st.spinner("🔎 搜尋中..."):
             cat = None if category_filter == "全部" else category_filter
-            results = ai_core.search_knowledge_base(query, top_k=max_results, category=cat)
+            original_results = ai_core.search_knowledge_base(query, top_k=max_results, category=cat)
             
             # 根據難度篩選結果
-            if difficulty_filter != "全部" and results:
-                results = [r for r in results if r['metadata'].get('difficulty') == difficulty_filter]
+            if difficulty_filter != "全部" and original_results:
+                results = [r for r in original_results if r['metadata'].get('difficulty') == difficulty_filter]
+            else:
+                results = original_results
         
-        if results:
-            st.success(f"✅ 找到 {len(results)} 個相關結果")
-            
-            for i, r in enumerate(results):
-                with st.expander(f"📝 {r['metadata'].get('title', f'結果 {i+1}')} - {r['metadata'].get('category', '未分類')} ({r['score']:.0%} 相關)", expanded=(i==0)):
-                    st.markdown(f"**相關度**：{r['score']:.0%}")
-                    st.markdown(f"**分類**：{r['metadata'].get('category', '未分類')}")
-                    st.markdown(f"**難度**：🎯 {r['metadata'].get('difficulty', '中等')}")
-                    if r['metadata'].get('tags'):
-                        tags_str = " ".join([f"`{tag}`" for tag in r['metadata'].get('tags', []) if tag])
-                        if tags_str.strip():
-                            st.markdown(f"**標籤**：{tags_str}")
-                    st.markdown("---")
-                    st.markdown(r['content'])
+        # 檢查原始結果（搜尋前）
+        if original_results:
+            if results:
+                st.success(f"✅ 找到 {len(results)} 個相關結果")
+                
+                for i, r in enumerate(results):
+                    with st.expander(f"📝 {r['metadata'].get('title', f'結果 {i+1}')} - {r['metadata'].get('category', '未分類')} ({r['score']:.0%} 相關)", expanded=(i==0)):
+                        st.markdown(f"**相關度**：{r['score']:.0%}")
+                        st.markdown(f"**分類**：{r['metadata'].get('category', '未分類')}")
+                        st.markdown(f"**難度**：🎯 {r['metadata'].get('difficulty', '中等')}")
+                        if r['metadata'].get('tags'):
+                            tags_str = " ".join([f"`{tag}`" for tag in r['metadata'].get('tags', []) if tag])
+                            if tags_str.strip():
+                                st.markdown(f"**標籤**：{tags_str}")
+                        st.markdown("---")
+                        st.markdown(r['content'])
+            else:
+                # 有原始結果但被難度篩選掉了
+                st.warning(f"😕 找到 {len(original_results)} 個相關結果，但沒有符合「{difficulty_filter}」難度的筆記")
+                st.info("💡 提示：嘗試選擇「全部」難度或其他難度等級")
         else:
             st.warning("😕 沒有找到相關結果，請嘗試其他關鍵字")
 
@@ -2937,18 +2945,23 @@ def render_database():
                         else:
                             st.success("✅ 語音已生成！")
                         
-                        # 播放音檔
-                        st.audio(tts_data['audio'], format='audio/mp3')
-                        
-                        # 下載按鈕
-                        st.download_button(
-                            label="📥 下載語音檔",
-                            data=tts_data['audio'],
-                            file_name=f"{tts_data['title']}.mp3",
-                            mime="audio/mp3",
-                            use_container_width=True,
-                            key=f"download_tts_{note['id']}"
-                        )
+                        # 下載按鈕（雲端環境使用下載，避免 st.audio 導致重新載入）
+                        col_download, col_clear = st.columns([3, 1])
+                        with col_download:
+                            st.download_button(
+                                label="📥 下載並播放語音檔",
+                                data=tts_data['audio'],
+                                file_name=f"{tts_data['title']}.mp3",
+                                mime="audio/mp3",
+                                use_container_width=True,
+                                key=f"download_tts_{note['id']}"
+                            )
+                        with col_clear:
+                            if st.button("🗑️", key=f"clear_tts_{note['id']}", use_container_width=True, help="清除語音"):
+                                del st.session_state[tts_key]
+                                if info_key in st.session_state:
+                                    del st.session_state[info_key]
+                                st.rerun()
                     
                     # 下載筆記按鈕 - 格式選擇
                     download_format = st.selectbox(
