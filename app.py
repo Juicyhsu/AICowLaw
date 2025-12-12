@@ -2937,6 +2937,9 @@ def render_database():
                         else:
                             st.success("✅ 語音已生成！")
                         
+                        # 播放音檔
+                        st.audio(tts_data['audio'], format='audio/mp3')
+                        
                         # 下載按鈕
                         st.download_button(
                             label="📥 下載語音檔",
