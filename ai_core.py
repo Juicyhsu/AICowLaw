@@ -125,7 +125,7 @@ class AICore:
             
             results = self.index.query(
                 vector=query_embedding,
-                top_k=top_k * 2,
+                top_k=top_k * 3,  # 取更多結果來篩選
                 include_metadata=True,
                 filter=filter_dict
             )
@@ -133,12 +133,12 @@ class AICore:
             # 除錯：顯示所有結果的分數
             print(f"🔍 Pinecone 返回 {len(results.get('matches', []))} 個結果")
             for i, match in enumerate(results.get('matches', [])[:5]):
-                print(f"  結果 {i+1}: 分數 {match['score']:.3f}")
+                print(f"  結果 {i+1}: 分數 {match['score']:.3f} - {match['metadata'].get('title', 'N/A')}")
             
             filtered_results = []
             for match in results['matches']:
-                # 閾值 0.6：只顯示高度相關的結果
-                if match['score'] >= 0.6:
+                # 提高閾值到 0.75，只顯示真正相關的結果
+                if match['score'] >= 0.75:
                     filtered_results.append({
                         'score': match['score'],
                         'content': match['metadata'].get('full_content', 
@@ -147,7 +147,16 @@ class AICore:
                     })
             
             filtered_results = filtered_results[:top_k]
-            print(f"✅ 過濾後找到 {len(filtered_results)} 個相關結果（閾值 >= 0.6）")
+            
+            if filtered_results:
+                print(f"✅ 過濾後找到 {len(filtered_results)} 個高度相關結果（閾值 >= 0.75）")
+            else:
+                print(f"⚠️ 沒有找到相關度 >= 0.75 的結果")
+                # 顯示最高分數供診斷
+                if results.get('matches'):
+                    max_score = results['matches'][0]['score']
+                    print(f"   最高分數: {max_score:.3f} (未達標準)")
+            
             return filtered_results
             
         except Exception as e:
