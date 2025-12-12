@@ -45,3 +45,10 @@ tests/
 # 自訂風格（如果不需要）
 custom_styles/
 custom_style_manager.py
+
+# 使用者特定設定檔案（會在首次使用時自動建立）
+review_settings_*.json
+ai_cache.json
+
+# 保留範本檔案，但忽略實際使用者資料
+# user_styles.json 保留（包含所有使用者的風格）

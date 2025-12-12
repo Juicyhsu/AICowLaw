@@ -6,6 +6,7 @@
 import google.generativeai as genai
 from pinecone import Pinecone, ServerlessSpec
 from config import Config
+from ai_cache import AICache
 import time
 import json
 import re
@@ -20,26 +21,21 @@ class AICore:
             # 配置 Gemini
             genai.configure(api_key=Config.GEMINI_API_KEY)
             
-            # 使用優化的生成配置以提升速度
-            generation_config = {
-                "temperature": 0.7,
-                "top_p": 0.95,
-                "top_k": 40,
-                "max_output_tokens": 4096,  # 降低以提升回應速度
-            }
+            # 初始化模型
+            self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
+            self.embedding_model = Config.EMBEDDING_MODEL
             
-            self.model = genai.GenerativeModel(
-                Config.GEMINI_MODEL,
-                generation_config=generation_config
-            )
-            
-            # 配置 Pinecone
+            # 初始化 Pinecone
             self.pc = Pinecone(api_key=Config.PINECONE_API_KEY)
-            self._init_pinecone_index()
+            self.index = self._init_pinecone_index()
             
-            print("✅ AI 核心初始化成功")
+            # 初始化 AI 快取
+            self.cache = AICache(cache_file="ai_cache.json", max_age_hours=24)
+            
+            print("✅ AI 服務初始化成功")
+            
         except Exception as e:
-            print(f"❌ 初始化失敗: {e}")
+            print(f"❌ AI 初始化失敗: {e}")
             raise
     
     def _init_pinecone_index(self):

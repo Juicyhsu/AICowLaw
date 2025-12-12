@@ -40,7 +40,7 @@ class Config:
     
     # 系統參數
     MAX_SEARCH_RESULTS = 5
-    SIMILARITY_THRESHOLD = 0.75  # 提高門檻以過濾不相關結果
+    SIMILARITY_THRESHOLD = 0.5  # 降低閾值以提高搜尋結果數量，同時保持相關性
     EASE_FACTOR_DEFAULT = 2.5
     
     # UI
