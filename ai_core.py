@@ -128,9 +128,15 @@ class AICore:
                 filter=filter_dict
             )
             
+            # 除錯：顯示所有結果的分數
+            print(f"🔍 Pinecone 返回 {len(results.get('matches', []))} 個結果")
+            for i, match in enumerate(results.get('matches', [])[:5]):
+                print(f"  結果 {i+1}: 分數 {match['score']:.3f}")
+            
             filtered_results = []
             for match in results['matches']:
-                if match['score'] >= Config.SIMILARITY_THRESHOLD:
+                # 降低閾值到 0.3，讓更多結果通過
+                if match['score'] >= 0.3:
                     filtered_results.append({
                         'score': match['score'],
                         'content': match['metadata'].get('full_content', 
@@ -139,11 +145,13 @@ class AICore:
                     })
             
             filtered_results = filtered_results[:top_k]
-            print(f"🔍 找到 {len(filtered_results)} 個相關結果")
+            print(f"✅ 過濾後找到 {len(filtered_results)} 個相關結果（閾值 >= 0.3）")
             return filtered_results
             
         except Exception as e:
             print(f"❌ 搜尋失敗: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     def generate_ai_notes(self, content: str, note_type: str = "重點整理", 
