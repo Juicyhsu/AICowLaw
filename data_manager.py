@@ -14,22 +14,29 @@ class DataManager:
         print("✅ Airtable 連接成功")
     
     def save_note(self, user_id: str, title: str, content: str, category: str = "一般", 
-                  tags: list = None, difficulty: str = "中等") -> dict:
+                  tags: list = None, difficulty: str = "中等", test_mode: bool = False) -> dict:
         """儲存筆記到 Airtable"""
+        # 測試模式：立即複習 / 正式模式：明天複習
+        if test_mode:
+            next_review_time = datetime.now() - timedelta(minutes=1)  # 1分鐘前（確保立即出現）
+            review_msg = "立即開始複習（測試模式）"
+        else:
+            next_review_time = datetime.now() + timedelta(days=1)  # 明天複習
+            review_msg = "明天開始複習"
+        
         note = {
             'user_id': user_id,
             'title': title,
             'content': content,
             'category': category,
             'tags': ','.join(tags) if tags else '',
-            'difficulty': difficulty,  # 改為 difficulty
+            'difficulty': difficulty,
             'review_count': 0,
             'ease_factor': Config.EASE_FACTOR_DEFAULT,
             'interval': 0,
-            'next_review': datetime.now().isoformat()
+            'next_review': next_review_time.isoformat()
         }
         result = self.table.create(note)
-        print(f"✅ 筆記已儲存：{title}")
         return result['fields']
     
     def get_all_notes(self, user_id: str) -> list:
@@ -46,13 +53,14 @@ class DataManager:
                 'content': f.get('content', ''),
                 'category': f.get('category', ''),
                 'tags': f.get('tags', '').split(',') if f.get('tags') else [],
-                'difficulty': f.get('difficulty', '中等'),  # 改為 difficulty
+                'difficulty': f.get('difficulty', '中等'),
                 'created_at': f.get('created_at', ''),
                 'review_count': f.get('review_count', 0),
                 'ease_factor': f.get('ease_factor', 2.5),
                 'interval': f.get('interval', 0),
                 'next_review': f.get('next_review', ''),
-                'last_reviewed': f.get('last_reviewed', '')
+                'last_reviewed': f.get('last_reviewed', ''),
+                'last_memory_level': f.get('last_memory_level', '')  # 上次記憶程度
             })
         return notes
     
@@ -81,31 +89,74 @@ class DataManager:
             print(f"刪除錯誤: {e}")
             return False
     
-    def calculate_next_review(self, note: dict, quality: str) -> dict:
-        """SM-2 演算法計算複習時間"""
-        quality_map = {'再次': 0, '困難': 3, '良好': 4, '容易': 5, '精通': 5}
-        q = quality_map.get(quality, 3)
+    def calculate_next_review(self, note: dict, memory_level: str, user_id: str = None) -> dict:
+        """計算複習時間（使用自訂間隔設定）
+        
+        Args:
+            memory_level: 記憶程度（中文）- 完全不記得、有點印象、大致記得、很熟悉、完全精通
+            user_id: 使用者ID（用於載入自訂設定）
+        
+        Note:
+            記憶程度決定間隔序列（可自訂），筆記難度調整間隔倍率
+        """
+        # 向後相容：自動遷移舊的記憶程度值
+        migration_map = {
+            '再次': '完全不記得',
+            '困難': '有點印象',
+            '良好': '大致記得',
+            '容易': '很熟悉',
+            '精通': '完全精通'
+        }
+        
+        if memory_level in migration_map:
+            memory_level = migration_map[memory_level]
         
         ease_factor = note.get('ease_factor', 2.5)
         interval = note.get('interval', 0)
         review_count = note.get('review_count', 0)
+        difficulty = note.get('difficulty', '中等')  # 筆記難度（獨立概念）
         
-        if q >= 3:
-            if review_count == 0:
-                interval = 1
-            elif review_count == 1:
-                interval = 6
+        # 筆記難度 → 間隔倍率（不變）
+        difficulty_multiplier = {
+            '極簡單': 1.5,
+            '簡單': 1.2,
+            '中等': 1.0,
+            '困難': 0.8,
+            '極困難': 0.6
+        }
+        multiplier = difficulty_multiplier.get(difficulty, 1.0)
+        
+        # 載入使用者的間隔設定
+        if user_id:
+            try:
+                from review_settings import ReviewSettings
+                settings_manager = ReviewSettings(user_id)
+                interval_sequence = settings_manager.get_intervals(memory_level)
+            except Exception as e:
+                print(f"載入自訂設定失敗，使用預設值：{e}")
+                interval_sequence = self._get_default_intervals(memory_level)
+        else:
+            interval_sequence = self._get_default_intervals(memory_level)
+        
+        # 記憶程度 → 間隔序列
+        if memory_level != '完全不記得':
+            if review_count < len(interval_sequence):
+                base_interval = interval_sequence[review_count]
             else:
-                interval = math.ceil(interval * ease_factor)
+                base_interval = interval_sequence[-1]
             
-            if quality == '精通':
-                interval = max(interval, 30)
+            # 應用筆記難度倍率
+            interval = max(1, int(base_interval * multiplier))
+            interval = min(interval, 60)
             
+            # 調整 ease_factor
+            q = 5 if memory_level in ['完全精通', '很熟悉'] else 4
             ease_factor = ease_factor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02))
             ease_factor = max(1.3, ease_factor)
             review_count += 1
         else:
-            interval = 1
+            # 完全不記得：重置
+            interval = interval_sequence[0] if interval_sequence else 2
             review_count = 0
             ease_factor = max(1.3, ease_factor - 0.2)
         
@@ -116,7 +167,18 @@ class DataManager:
             'interval': interval,
             'review_count': review_count,
             'next_review': next_review.isoformat(),
-            'last_reviewed': datetime.now().isoformat()
+            'last_reviewed': datetime.now().isoformat(),
+            'last_memory_level': memory_level  # 儲存中文記憶程度
+        }
+    
+    def _get_default_intervals(self, memory_level: str) -> list:
+        """取得預設間隔序列（備用）"""
+        default_intervals = {
+            '完全精通': [6, 14, 28, 60, 60],
+            '很熟悉': [4, 10, 20, 40, 60],
+            '大致記得': [2, 6, 14, 28, 60],
+            '有點印象': [2, 4, 8, 16, 30],
+            '完全不記得': [2]
         }
     
     def update_review_schedule(self, note_id: str, quality: str, user_id: str) -> bool:
@@ -127,14 +189,15 @@ class DataManager:
             print(f"❌ 找不到筆記：{note_id}")
             return False
         
-        updates = self.calculate_next_review(note, quality)
+        updates = self.calculate_next_review(note, quality, user_id)
         
         try:
             self.table.update(note_id, updates)
-            print(f"✅ 已更新複習排程：{note.get('title')} - 下次複習：{updates['interval']}天後，複習次數：{updates['review_count']}")
             return True
         except Exception as e:
             print(f"❌ 更新失敗：{e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def get_due_notes(self, user_id: str) -> list:
@@ -144,20 +207,17 @@ class DataManager:
         due = []
         
         for note in notes:
-            try:
-                next_review_str = note.get('next_review', '')
-                if not next_review_str:
-                    # 新筆記沒有 next_review，不應該立即加入複習列表
-                    # 只有已經複習過至少一次的筆記才會有 next_review
-                    continue
-                
-                next_review = datetime.fromisoformat(next_review_str)
-                if next_review <= now:
-                    due.append(note)
-            except Exception as e:
-                print(f"⚠️ 解析 next_review 錯誤：{e}")
-                # 解析錯誤的筆記也不加入複習列表
-                continue
+            next_review_str = note.get('next_review', '')
+            if next_review_str:
+                try:
+                    next_review = datetime.fromisoformat(next_review_str)
+                    if next_review.tzinfo is not None:
+                        next_review = next_review.replace(tzinfo=None)
+                    
+                    if next_review <= now:
+                        due.append(note)
+                except Exception:
+                    pass
         
         return sorted(due, key=lambda x: x.get('next_review', ''))
     

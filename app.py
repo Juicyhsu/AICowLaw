@@ -313,6 +313,11 @@ if 'logging_in' not in st.session_state:
 if 'show_loading' not in st.session_state:
     st.session_state.show_loading = False
 
+# 從 query parameter 恢復登入狀態（頁面重新整理時）
+query_params = st.query_params
+if 'user' in query_params and not st.session_state.user_id:
+    st.session_state.user_id = query_params['user']
+
 # 快速登入，不顯示過渡頁面（避免殘影）
 if st.session_state.logging_in:
     st.session_state.logging_in = False
@@ -360,6 +365,8 @@ if not st.session_state.user_id:
                     st.session_state.user_id = user_name
                     st.session_state.logging_in = True
                     st.session_state.show_loading = False
+                    # 設定 query parameter 以持久化登入狀態
+                    st.query_params['user'] = user_name
                     time.sleep(0.3)  # 最小延遲讓用戶看到提示
                 st.rerun()
             else:
@@ -438,19 +445,22 @@ async def generate_tts_audio(text: str, voice: str = "zh-CN-XiaoxiaoNeural", use
     if len(clean_text) > 2000:
         clean_text = clean_text[:2000] + "..."
     
-    # 首先嘗試 Edge TTS（帶重試機制）
+    # 嘗試 Edge TTS（含重試機制）
     edge_tts_error = None
-    for attempt in range(2):  # 重試 2 次
+    
+    # 先導入 asyncio，確保在整個函數中都可用
+    import asyncio
+    
+    for attempt in range(2):  # 嘗試 2 次
         try:
             import edge_tts
-            import asyncio
             
-            # 設定超時時間
+            # 生成語音
             communicate = edge_tts.Communicate(clean_text, voice)
             audio_data = b""
             chunk_count = 0
             
-            # 使用 asyncio.wait_for 設定超時
+            # 收集音訊資料
             async def collect_audio():
                 nonlocal audio_data, chunk_count
                 async for chunk in communicate.stream():
@@ -458,23 +468,23 @@ async def generate_tts_audio(text: str, voice: str = "zh-CN-XiaoxiaoNeural", use
                         audio_data += chunk["data"]
                         chunk_count += 1
             
-            # 30 秒超時
+            # 設定 30 秒超時
             await asyncio.wait_for(collect_audio(), timeout=30.0)
             
             if audio_data and chunk_count > 0:
                 return audio_data
             else:
-                edge_tts_error = f"無法生成音訊（收到 {chunk_count} 個音訊片段）"
+                edge_tts_error = f"無法生成語音（收到 {chunk_count} 個音訊區塊）"
                 
         except asyncio.TimeoutError:
-            edge_tts_error = "Edge TTS 服務連線超時（30秒）"
+            edge_tts_error = "Edge TTS 服務連線逾時（30秒）"
             if attempt == 0:
-                await asyncio.sleep(1)  # 重試前等待 1 秒
+                await asyncio.sleep(1)  # 等待 1 秒後重試
                 continue
         except Exception as e:
             edge_tts_error = str(e)
             if attempt == 0 and "No audio was received" not in str(e):
-                await asyncio.sleep(1)  # 重試前等待 1 秒
+                await asyncio.sleep(1)  # 等待 1 秒後重試
                 continue
         
         break  # 如果是 "No audio was received" 錯誤，不重試
@@ -543,6 +553,15 @@ def create_download_link(content: str, filename: str, file_format: str = "md") -
     
     return f'<a href="data:{mime_type};base64,{b64}" download="{filename}.{file_format}">📥 下載 {file_format.upper()}</a>'
 
+# ==================== 初始化 ====================
+# 初始化已完成集合（只在第一次）
+if 'completed_in_session' not in st.session_state:
+    st.session_state.completed_in_session = set()
+
+# 初始化已複習計數（用於顯示）
+if 'reviewed_count' not in st.session_state:
+    st.session_state.reviewed_count = 0
+
 # ==================== 側邊欄 ====================
 with st.sidebar:
     st.markdown(f"""
@@ -557,6 +576,28 @@ with st.sidebar:
     
     if data_manager:
         stats = data_manager.get_stats(st.session_state.user_id)
+        
+        # 計算今天已複習的筆記數量（從資料庫查詢）
+        from datetime import datetime
+        today = datetime.now().date()
+        all_notes_sidebar = data_manager.get_all_notes(st.session_state.user_id)
+        
+        # 計算今天複習過的筆記（last_reviewed 是今天的）
+        reviewed_today_sidebar = 0
+        for note in all_notes_sidebar:
+            if note.get('last_reviewed'):
+                try:
+                    last_reviewed_date = datetime.fromisoformat(note['last_reviewed']).date()
+                    if last_reviewed_date == today:
+                        reviewed_today_sidebar += 1
+                except:
+                    pass
+        
+        # 先查詢待複習筆記，用於計算正確的剩餘數量
+        all_due_notes_sidebar = data_manager.get_due_notes(st.session_state.user_id)
+        remaining_due_notes_sidebar = [n for n in all_due_notes_sidebar if n['id'] not in st.session_state.completed_in_session]
+        remaining_due_sidebar = len(remaining_due_notes_sidebar)
+
         st.markdown(f"""
         <div style='color: white; padding: 1rem;'>
             <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
@@ -565,11 +606,11 @@ with st.sidebar:
             </div>
             <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
                 <span>⏰ 待複習</span>
-                <span style='font-weight: bold; color: #fbbf24;'>{stats['due_today']}</span>
+                <span style='font-weight: bold; color: #fbbf24;'>{remaining_due_sidebar}</span>
             </div>
             <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
-                <span>✅ 已複習</span>
-                <span style='font-weight: bold; color: #34d399;'>{stats['reviewed']}</span>
+                <span>✅ 今日已複習</span>
+                <span style='font-weight: bold; color: #34d399;'>{reviewed_today_sidebar}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -592,8 +633,18 @@ with st.sidebar:
     
     st.markdown("---")
     
+    # 複習設定按鈕
+    if st.button("⚙️ 複習設定", use_container_width=True):
+        st.session_state.current_page = "review"
+        st.session_state.show_review_settings = True
+        st.query_params.update({"page": "review"})
+        st.rerun()
+    
+    # 登出按鈕
     if st.button("🚪 登出", use_container_width=True):
         st.session_state.user_id = None
+        st.session_state.current_page = "home"
+        st.query_params.clear()
         st.rerun()
     
     st.markdown("---")
@@ -641,6 +692,11 @@ def render_home():
     """, unsafe_allow_html=True)
     
     stats = data_manager.get_stats(st.session_state.user_id)
+    
+    # 先查詢待複習筆記，用於計算正確的剩餘數量
+    all_due_notes = data_manager.get_due_notes(st.session_state.user_id)
+    remaining_due_notes = [n for n in all_due_notes if n['id'] not in st.session_state.completed_in_session]
+    
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -652,18 +708,36 @@ def render_home():
         """, unsafe_allow_html=True)
     
     with col2:
+        # 使用實際過濾後的筆記數量
         st.markdown(f"""
         <div class="stat-card">
             <div class="stat-label">⏰ 今日待複習</div>
-            <div class="stat-number">{stats['due_today']}</div>
+            <div class="stat-number">{len(remaining_due_notes)}</div>
         </div>
         """, unsafe_allow_html=True)
     
     with col3:
+        # 計算今天已複習的筆記數量（從資料庫查詢）
+        from datetime import datetime
+        today = datetime.now().date()
+        all_notes = data_manager.get_all_notes(st.session_state.user_id)
+        
+        # 計算今天複習過的筆記（last_reviewed 是今天的）
+        reviewed_today = 0
+        for note in all_notes:
+            if note.get('last_reviewed'):
+                try:
+                    # last_reviewed 格式: "2025-12-12T15:30:00"
+                    last_reviewed_date = datetime.fromisoformat(note['last_reviewed']).date()
+                    if last_reviewed_date == today:
+                        reviewed_today += 1
+                except:
+                    pass
+        
         st.markdown(f"""
         <div class="stat-card">
-            <div class="stat-label">✅ 已完成複習</div>
-            <div class="stat-number">{stats['reviewed']}</div>
+            <div class="stat-label">✅ 今日已複習</div>
+            <div class="stat-number">{reviewed_today}</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -671,18 +745,75 @@ def render_home():
     
     st.markdown("### 📅 今日複習推薦")
     
-    due_notes = data_manager.get_due_notes(st.session_state.user_id)
-    
-    if due_notes:
-        st.markdown(f'<div class="warning-box">⏰ 你有 {len(due_notes)} 則筆記需要複習！</div>', unsafe_allow_html=True)
-        
-        for i, note in enumerate(due_notes[:3]):
-            with st.expander(f"📝 {note.get('title', '無標題')} - {note.get('category', '未分類')}", expanded=(i==0)):
-                st.markdown(f"**複習次數**：{note.get('review_count', 0)} 次")
-                st.markdown(f"**難度**：🎯 {note.get('difficulty', '中等')}")
-                if st.button(f"🔄 立即複習", key=f"review_home_{note['id']}", use_container_width=True):
-                    st.session_state.current_page = 'review'
-                    st.rerun()
+    # 使用已經查詢和過濾的筆記列表
+    if all_due_notes:
+        # remaining_due_notes 已經在上面過濾好了
+        if remaining_due_notes:
+            st.markdown(f'<div class="warning-box">⏰ 你有 {len(remaining_due_notes)} 則筆記需要複習！</div>', unsafe_allow_html=True)
+            
+            for i, note in enumerate(remaining_due_notes):
+                with st.expander(f"📝 {note.get('title', '無標題')} - {note.get('category', '未分類')}", expanded=False):
+                    st.markdown(f"**複習次數**：{note.get('review_count', 0)} 次")
+                    st.markdown(f"**難度**：🎯 {note.get('difficulty', '中等')}")
+                    
+                    st.markdown("---")
+                    st.markdown("**內容：**")
+                    st.markdown(note.get('content', '無內容'))
+                    
+                    st.markdown("---")
+                    
+                    # 設定預設值：根據上次記憶程度
+                    last_memory_map = {
+                        "完全不記得": 0, "有點印象": 1, "大致記得": 2, "很熟悉": 3, "完全精通": 4,
+                        "再次": 0, "困難": 1, "良好": 2, "容易": 3, "精通": 4, "": 0
+                    }
+                    default_index = last_memory_map.get(note.get('last_memory_level', ''), 0)
+                    
+                    memory_level = st.radio(
+                        "選擇記憶程度",
+                        ["❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"],
+                        horizontal=True,
+                        index=default_index,
+                        key=f"home_review_memory_{note['id']}"
+                    )
+                    
+                    # 判斷是第一次複習還是多次複習
+                    review_count = note.get('review_count', 0)
+                    
+                    if review_count == 0:
+                        # 第一次複習：只顯示「確認」按鈕
+                        if st.button("✅ 確認", key=f"home_review_btn_{note['id']}", type="primary", use_container_width=True):
+                            level_map = {
+                                "❌ 完全不記得": "完全不記得", "😐 有點印象": "有點印象",
+                                "😊 大致記得": "大致記得", "✅ 很熟悉": "很熟悉", "🌟 完全精通": "完全精通"
+                            }
+                            data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                            st.success("✅ 已確認！")
+                            st.rerun()
+                    else:
+                        # 多次複習：顯示「更新」和「維持」按鈕
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ 更新", key=f"home_review_btn_{note['id']}", type="primary", use_container_width=True):
+                                level_map = {
+                                    "❌ 完全不記得": "完全不記得", "😐 有點印象": "有點印象",
+                                    "😊 大致記得": "大致記得", "✅ 很熟悉": "很熟悉", "🌟 完全精通": "完全精通"
+                                }
+                                data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                                st.success("✅ 已更新！")
+                                st.rerun()
+                        
+                        with col2:
+                            if st.button("⏭️ 維持", key=f"home_maintain_btn_{note['id']}", type="secondary", use_container_width=True):
+                                # 維持按鈕：不更新記憶程度，但標記為已複習
+                                # 由於沒有更新資料庫，這則筆記下次還會出現
+                                # 所以我們需要添加到 completed_in_session
+                                st.session_state.completed_in_session.add(note['id'])
+                                st.success("✅ 已維持！")
+                                st.rerun()
+        else:
+            st.markdown('<div class="success-box">🎉 太棒了！今日複習都已完成！</div>', unsafe_allow_html=True)
+            st.balloons()
     else:
         st.markdown('<div class="success-box">🎉 目前沒有待複習的筆記！繼續保持！</div>', unsafe_allow_html=True)
     
@@ -707,7 +838,22 @@ def render_home():
 def render_note():
     render_top_nav()
     
-    st.markdown("## 📝 AI 組織筆記建立")
+    # 標題和清空按鈕
+    col_title, col_clear = st.columns([4, 1])
+    with col_title:
+        st.markdown("## 📝 AI 組織筆記建立")
+    with col_clear:
+        if st.button("🗑️ 清空所有內容", use_container_width=True, type="secondary"):
+            # 清空所有相關的 session state
+            keys_to_clear = ['generated_notes', 'note_metadata', 'pdf_content', 'mindmap_code', 
+                           'system_diagram', 'voice_transcription', 'voice_notes', 'ai_notes',
+                           'ocr_result', 'smoothed_ocr']
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.success("✅ 已清空所有內容！")
+            st.rerun()
+    
     st.markdown('<div class="info-box">📌 輸入法條或筆記內容，AI 會自動整理成結構化筆記</div>', unsafe_allow_html=True)
     
     # 標籤選擇器（使用按鈕）
@@ -778,45 +924,69 @@ def render_note():
         with col1:
             note_type = st.selectbox("🎯 筆記類型", ["重點整理", "考點分析", "案例解析"])
         with col2:
-            tags = st.text_input("🏷️ 標籤", placeholder="用逗號分隔，例如：侵權,重點")
-        with col3:
             difficulty = st.selectbox(
-                "🎯 難度標籤",
+                "📚 內容難度",
                 ["極簡單", "簡單", "中等", "困難", "極困難"],
-                index=2  # 預設「中等」
+                index=2,  # 預設「中等」
+                help="筆記內容本身的難易程度，會影響複習間隔"
             )
+        with col3:
+            tags = st.text_input("🏷️ 標籤", placeholder="用逗號分隔，例如：侵權,重點")
+        
+        st.info("""📅 **初始預設**：
+- 新建立筆記將在隔天進行第一次複習。
+- 每次複習時都可以重新調整記憶程度，系統會根據你的選擇安排下次複習時間。
+- 如需提前複習，請到「🔄 複習推薦」頁面。""")
         
         # AI 生成風格選擇
         st.markdown("### 🎨 AI 筆記風格設定")
         
-        # 導入 Prompt 模板
-        from prompt_templates import get_all_style_options, get_style_instruction
+        # 導入 Prompt 模板和風格儲存
+        from prompt_templates import get_all_style_options, get_style_instruction, PROFESSIONAL_PROMPTS, ESSENTIAL_PROMPTS
+        import style_storage
         
-        # 從 Airtable 載入使用者自訂風格
-        user_styles = {}
-        try:
-            all_notes = data_manager.get_all_notes(st.session_state.user_id)
-            for note in all_notes:
-                if 'tags' in note and '自訂風格' in note.get('tags', []):
-                    style_name = note.get('title', '').replace('[風格] ', '')
-                    user_styles[f"⭐ {style_name}"] = note.get('content', '')
-        except:
-            pass
+        # 從 JSON 載入使用者自訂風格
+        user_styles = style_storage.load_user_styles(st.session_state.user_id)
         
-        # 合併預設風格和使用者風格
-        style_presets = get_all_style_options()
-        all_styles = {**style_presets, **user_styles}
+        # 建立風格選項列表（帶分隔線）
+        style_options = []
+        
+        # 1. 專業版風格
+        style_options.extend(list(PROFESSIONAL_PROMPTS.keys()))
+        
+        # 2. 精選版風格
+        style_options.extend(list(ESSENTIAL_PROMPTS.keys()))
+        
+        # 3. 分隔線 + 使用者風格
+        style_options.append("───── 我的風格 ─────")
+        if user_styles:
+            for style_name in user_styles.keys():
+                style_options.append(f"⭐ {style_name}")
+        
+        # 4. 自訂風格選項
+        style_options.append("✏️ 自訂風格")
+        
+        # 建立風格描述字典（用於預覽）
+        style_presets = {}
+        style_presets.update(PROFESSIONAL_PROMPTS)
+        style_presets.update(ESSENTIAL_PROMPTS)
+        for name, desc in user_styles.items():
+            style_presets[f"⭐ {name}"] = desc
         
         # 風格選擇介面
         col_select, col_manage = st.columns([3, 1])
         
         with col_select:
-            selected_style = st.selectbox("選擇筆記風格", list(all_styles.keys()), index=0)
+            selected_style = st.selectbox("選擇筆記風格", style_options, index=0)
         
         with col_manage:
             st.write("")  # 對齊
-            if st.button("⚙️ 管理風格", use_container_width=True, key="toggle_manage_btn"):
-                st.session_state.show_style_manager = not st.session_state.get('show_style_manager', False)
+            # 根據面板狀態顯示不同的按鈕文字
+            is_open = st.session_state.get('show_style_manager', False)
+            button_text = "⚙️ 新增/管理風格（收起）" if is_open else "⚙️ 新增/管理風格"
+            if st.button(button_text, use_container_width=True, key="toggle_manage_btn"):
+                st.session_state.show_style_manager = not is_open
+                st.rerun()
         
         # 風格管理面板
         if st.session_state.get('show_style_manager', False):
@@ -829,20 +999,19 @@ def render_note():
                     
                     if st.form_submit_button("✅ 儲存", use_container_width=True):
                         if new_style_name and new_style_desc:
-                            if f"⭐ {new_style_name}" in user_styles:
+                            if new_style_name in user_styles:
                                 st.error(f"❌ 風格「{new_style_name}」已存在")
                             else:
-                                data_manager.save_note(
-                                    user_id=st.session_state.user_id,
-                                    title=f"[風格] {new_style_name}",
-                                    content=new_style_desc,
-                                    category="其他",
-                                    tags=['自訂風格'],
-                                    difficulty="中等"
-                                )
-                                st.success(f"✅ 已儲存「{new_style_name}」")
-                                time.sleep(0.5)
-                                st.rerun()
+                                if style_storage.save_user_style(
+                                    st.session_state.user_id,
+                                    new_style_name,
+                                    new_style_desc
+                                ):
+                                    st.success(f"✅ 已儲存「{new_style_name}」")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                else:
+                                    st.error("❌ 儲存失敗")
                         else:
                             st.warning("⚠️ 請填寫完整資訊")
                 
@@ -855,38 +1024,45 @@ def render_note():
                     for idx, (style_name, style_desc) in enumerate(user_styles.items()):
                         col1, col2 = st.columns([4, 1])
                         with col1:
-                            st.text(style_name)
+                            st.text(f"⭐ {style_name}")
                             st.caption(f"{style_desc[:50]}..." if len(style_desc) > 50 else style_desc)
                         with col2:
                             if st.button("🗑️", key=f"del_style_{idx}", help="刪除此風格"):
-                                for note in all_notes:
-                                    if note.get('title') == f"[風格] {style_name.replace('⭐ ', '')}":
-                                        data_manager.delete_note(note['id'], st.session_state.user_id)
-                                        st.success("✅ 已刪除")
-                                        time.sleep(0.3)
-                                        st.rerun()
-                                        break
+                                if style_storage.delete_user_style(st.session_state.user_id, style_name):
+                                    st.success("✅ 已刪除")
+                                    time.sleep(0.3)
+                                    st.rerun()
                         st.markdown("---")
         
+        
         # 處理風格指示
-        if selected_style == "✏️ 自訂風格":
+        if selected_style == "───── 我的風格 ─────":
+            # 如果選到分隔線，顯示提示
+            st.info("👆 請從上方選擇一個風格，或點擊「⚙️ 管理風格」新增自訂風格")
+            style_instruction = ""
+        elif selected_style == "✏️ 自訂風格":
             custom_style = st.text_area("請描述你想要的筆記風格", height=100, 
                 placeholder="例如：用條列式整理，每個重點不超過30字，加上記憶口訣",
                 key="custom_style_input")
-            style_instruction = get_style_instruction(selected_style, custom_style)
-        else:
-            style_instruction = get_style_instruction(
-                selected_style,
-                user_id=st.session_state.user_id,
-                style_manager=style_manager
-            )
+            style_instruction = custom_style if custom_style else ""
+        elif selected_style.startswith("⭐ "):
+            # 使用者自訂風格
+            actual_name = selected_style[2:]  # 移除 "⭐ " 前綴
+            style_instruction = user_styles.get(actual_name, "")
             # 顯示風格說明
             with st.expander("👀 查看此風格說明"):
-                preview_text = style_presets[selected_style]
+                st.info(style_instruction[:200] + "..." if len(style_instruction) > 200 else style_instruction)
+        else:
+            # 預設風格
+            style_instruction = style_presets.get(selected_style, "")
+            # 顯示風格說明
+            with st.expander("👀 查看此風格說明"):
+                preview_text = style_presets.get(selected_style, "")
                 if len(preview_text) > 200:
                     st.info(preview_text[:200] + "...")
                 else:
                     st.info(preview_text)
+        
         
         st.markdown("<br>", unsafe_allow_html=True)
         
@@ -903,7 +1079,7 @@ def render_note():
                             'title': title or f"{category} - {note_type}",
                             'category': category,
                             'tags': [t.strip() for t in tags.split(",")] if tags else [],
-                            'difficulty': difficulty  # 改為 difficulty
+                            'difficulty': difficulty
                         }
                         st.rerun()
                 else:
@@ -953,6 +1129,15 @@ def render_note():
             
             st.markdown("### 💾 儲存與下載")
             
+            # 測試模式開關
+            test_mode = st.checkbox(
+                "🧪 測試模式（立即複習）", 
+                value=False,
+                help="開啟後，筆記會立即出現在複習列表（測試用）。正式使用請關閉。"
+            )
+            if test_mode:
+                st.warning("⚠️ 測試模式已開啟：筆記將立即可複習")
+            
             # 儲存選項
             col1, col2 = st.columns(2)
             with col1:
@@ -960,8 +1145,8 @@ def render_note():
             with col2:
                 add_to_kb = st.checkbox("✅ 加入知識庫（支援 AI 智慧搜尋）", value=True)
             
-            # 按鈕區 - 改為 4 欄
-            col1, col2, col3, col4 = st.columns([2, 2, 1, 1])
+            # 按鈕區 - 調整為 3 欄：儲存、下載格式+下載按鈕、重新生成
+            col1, col2, col3 = st.columns([2, 3, 2])
             
             with col1:
                 if st.button("💾 儲存筆記", use_container_width=True, type="primary"):
@@ -974,7 +1159,8 @@ def render_note():
                             content=st.session_state.generated_notes,
                             category=meta['category'],
                             tags=meta['tags'],
-                            difficulty=meta['difficulty']  # 改為 difficulty
+                            difficulty=meta['difficulty'],
+                            test_mode=test_mode  # 傳遞測試模式
                         )
                     
                     if add_to_kb:
@@ -995,99 +1181,101 @@ def render_note():
                     # 不再自動清空，讓使用者自己決定
             
             with col2:
-                # 下載格式選擇和按鈕
-                download_format = st.selectbox("下載格式", ["Markdown", "Word", "PDF"], label_visibility="collapsed")
-                
-                if download_format == "Markdown":
-                    st.download_button(
-                        "⬇️ 下載筆記",
-                        st.session_state.generated_notes,
-                        f"{st.session_state.note_metadata['title']}.md",
-                        "text/markdown",
-                        use_container_width=True
-                    )
-                elif download_format == "Word":
-                    try:
-                        from docx import Document
-                        from io import BytesIO
-                        
-                        doc = Document()
-                        doc.add_heading(st.session_state.note_metadata['title'], 0)
-                        for line in st.session_state.generated_notes.split('\n'):
-                            if line.strip():
-                                doc.add_paragraph(line)
-                        
-                        buffer = BytesIO()
-                        doc.save(buffer)
-                        buffer.seek(0)
-                        
+                # 下載格式選擇和按鈕並排
+                col2_1, col2_2 = st.columns([1, 2])
+                with col2_1:
+                    download_format = st.selectbox("格式", ["Markdown", "Word", "PDF"], label_visibility="collapsed")
+                with col2_2:
+                    if download_format == "Markdown":
                         st.download_button(
                             "⬇️ 下載筆記",
-                            buffer,
-                            f"{st.session_state.note_metadata['title']}.docx",
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            st.session_state.generated_notes,
+                            f"{st.session_state.note_metadata['title']}.md",
+                            "text/markdown",
                             use_container_width=True
                         )
-                    except ImportError:
-                        st.error("請先安裝 python-docx：pip install python-docx")
-                elif download_format == "PDF":
-                    try:
-                        from reportlab.lib.pagesizes import A4
-                        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-                        from reportlab.pdfbase import pdfmetrics
-                        from reportlab.pdfbase.ttfonts import TTFont
-                        from io import BytesIO
-                        
-                        buffer = BytesIO()
-                        doc = SimpleDocTemplate(buffer, pagesize=A4)
-                        story = []
-                        
-                        # 註冊中文字體（使用系統字體）
+                    elif download_format == "Word":
                         try:
-                            pdfmetrics.registerFont(TTFont('Microsoft-JhengHei', 'C:/Windows/Fonts/msjh.ttc'))
-                            font_name = 'Microsoft-JhengHei'
-                        except:
-                            font_name = 'Helvetica'
-                        
-                        styles = getSampleStyleSheet()
-                        title_style = ParagraphStyle(
-                            'CustomTitle',
-                            parent=styles['Heading1'],
-                            fontName=font_name,
-                            fontSize=18,
-                            spaceAfter=30,
-                        )
-                        body_style = ParagraphStyle(
-                            'CustomBody',
-                            parent=styles['BodyText'],
-                            fontName=font_name,
-                            fontSize=12,
-                            leading=20,
-                        )
-                        
-                        # 標題
-                        story.append(Paragraph(st.session_state.note_metadata['title'], title_style))
-                        story.append(Spacer(1, 12))
-                        
-                        # 內容
-                        for line in st.session_state.generated_notes.split('\n'):
-                            if line.strip():
-                                story.append(Paragraph(line.replace('<', '&lt;').replace('>', '&gt;'), body_style))
-                                story.append(Spacer(1, 6))
-                        
-                        doc.build(story)
-                        buffer.seek(0)
-                        
-                        st.download_button(
-                            "⬇️ 下載筆記",
-                            buffer,
-                            f"{st.session_state.note_metadata['title']}.pdf",
-                            "application/pdf",
-                            use_container_width=True
-                        )
-                    except ImportError:
-                        st.error("請先安裝 reportlab：pip install reportlab")
+                            from docx import Document
+                            from io import BytesIO
+                            
+                            doc = Document()
+                            doc.add_heading(st.session_state.note_metadata['title'], 0)
+                            for line in st.session_state.generated_notes.split('\n'):
+                                if line.strip():
+                                    doc.add_paragraph(line)
+                            
+                            buffer = BytesIO()
+                            doc.save(buffer)
+                            buffer.seek(0)
+                            
+                            st.download_button(
+                                "⬇️ 下載筆記",
+                                buffer,
+                                f"{st.session_state.note_metadata['title']}.docx",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True
+                            )
+                        except ImportError:
+                            st.error("請先安裝 python-docx：pip install python-docx")
+                    elif download_format == "PDF":
+                        try:
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                            from reportlab.pdfbase import pdfmetrics
+                            from reportlab.pdfbase.ttfonts import TTFont
+                            from io import BytesIO
+                            
+                            # 註冊中文字型
+                            try:
+                                pdfmetrics.registerFont(TTFont('NotoSansTC', 'NotoSansTC-Regular.ttf'))
+                                font_name = 'NotoSansTC'
+                            except:
+                                font_name = 'Helvetica'
+                            
+                            buffer = BytesIO()
+                            doc = SimpleDocTemplate(buffer, pagesize=A4)
+                            story = []
+                            
+                            styles = getSampleStyleSheet()
+                            title_style = ParagraphStyle(
+                                'CustomTitle',
+                                parent=styles['Heading1'],
+                                fontName=font_name,
+                                fontSize=24,
+                                spaceAfter=30,
+                            )
+                            body_style = ParagraphStyle(
+                                'CustomBody',
+                                parent=styles['BodyText'],
+                                fontName=font_name,
+                                fontSize=12,
+                                leading=20,
+                            )
+                            
+                            # 標題
+                            story.append(Paragraph(st.session_state.note_metadata['title'], title_style))
+                            story.append(Spacer(1, 12))
+                            
+                            # 內容
+                            for line in st.session_state.generated_notes.split('\n'):
+                                if line.strip():
+                                    story.append(Paragraph(line.replace('<', '&lt;').replace('>', '&gt;'), body_style))
+                                    story.append(Spacer(1, 6))
+                            
+                            doc.build(story)
+                            buffer.seek(0)
+                            
+                            st.download_button(
+                                "⬇️ 下載筆記",
+                                buffer,
+                                f"{st.session_state.note_metadata['title']}.pdf",
+                                "application/pdf",
+                                use_container_width=True
+                            )
+                        except ImportError:
+                            st.error("請先安裝 reportlab：pip install reportlab")
             
             
             with col3:
@@ -1095,23 +1283,6 @@ def render_note():
                     # 保留 metadata，只清空生成的筆記
                     if 'generated_notes' in st.session_state:
                         del st.session_state.generated_notes
-                    st.rerun()
-            
-            with col4:
-                if st.button("🗑️ 清空所有", use_container_width=True, key="clear_bottom"):
-                    # 清空所有相關的 session state
-                    if 'generated_notes' in st.session_state:
-                        del st.session_state.generated_notes
-                    if 'note_metadata' in st.session_state:
-                        del st.session_state.note_metadata
-                    if 'pdf_content' in st.session_state:
-                        del st.session_state.pdf_content
-                    if 'mindmap_code' in st.session_state:
-                        del st.session_state.mindmap_code
-                    if 'system_diagram' in st.session_state:
-                        del st.session_state.system_diagram
-                    st.success("✅ 已清空所有內容！")
-                    time.sleep(0.5)
                     st.rerun()
             
             # 心智圖生成
@@ -1167,6 +1338,128 @@ def render_note():
                 """
                 st.components.v1.html(mermaid_html, height=600, scrolling=True)
                 
+                # 下載和儲存按鈕
+                col_download, col_save, col_code = st.columns(3)
+                
+                with col_download:
+                    # 使用 Mermaid Ink API 轉換成圖片
+                    try:
+                        import requests
+                        import urllib.parse
+                        
+                        # 編碼 Mermaid 程式碼
+                        encoded = base64.urlsafe_b64encode(st.session_state.mindmap_code.encode('utf-8')).decode('ascii')
+                        
+                        # 使用 Mermaid Ink API
+                        img_url = f"https://mermaid.ink/img/{encoded}"
+                        
+                        # 下載圖片
+                        response = requests.get(img_url, timeout=10)
+                        if response.status_code == 200:
+                            st.download_button(
+                                label="📥 下載心智圖 (PNG)",
+                                data=response.content,
+                                file_name=f"{st.session_state.note_metadata.get('title', '心智圖')}_mindmap.png",
+                                mime="image/png",
+                                use_container_width=True,
+                                key="download_mindmap_png"
+                            )
+                        else:
+                            # API 失敗，提供程式碼下載
+                            st.download_button(
+                                label="📥 下載程式碼",
+                                data=st.session_state.mindmap_code,
+                                file_name=f"{st.session_state.note_metadata.get('title', '心智圖')}_mindmap.mmd",
+                                mime="text/plain",
+                                use_container_width=True,
+                                key="download_mindmap_code"
+                            )
+                    except Exception as e:
+                        # 發生錯誤，提供程式碼下載
+                        st.download_button(
+                            label="📥 下載程式碼",
+                            data=st.session_state.mindmap_code,
+                            file_name=f"{st.session_state.note_metadata.get('title', '心智圖')}_mindmap.mmd",
+                            mime="text/plain",
+                            use_container_width=True,
+                            key="download_mindmap_fallback"
+                        )
+                
+                with col_save:
+                    if st.button("💾 儲存到筆記庫", use_container_width=True, key="save_mindmap"):
+                        with st.spinner("💾 正在儲存..."):
+                            try:
+                                import requests
+                                
+                                # 轉換成圖片
+                                encoded = base64.urlsafe_b64encode(st.session_state.mindmap_code.encode('utf-8')).decode('ascii')
+                                img_url = f"https://mermaid.ink/img/{encoded}"
+                                response = requests.get(img_url, timeout=10)
+                                
+                                if response.status_code == 200:
+                                    # 成功取得圖片，轉換成 Base64
+                                    img_base64 = base64.b64encode(response.content).decode('ascii')
+                                    
+                                    # 建立包含圖片的 Markdown 內容
+                                    meta = st.session_state.note_metadata
+                                    content = f"""# {meta.get('title', '筆記')} - 心智圖
+
+![心智圖](data:image/png;base64,{img_base64})
+
+---
+
+## Mermaid 程式碼
+
+```mermaid
+{st.session_state.mindmap_code}
+```
+"""
+                                    
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"🗺️ {meta.get('title', '筆記')} - 心智圖",
+                                        content=content,
+                                        category=meta.get('category', '其他'),
+                                        tags=meta.get('tags', []) + ['心智圖'],
+                                        difficulty=meta.get('difficulty', '中等')
+                                    )
+                                    st.success("✅ 心智圖（含圖片）已儲存到筆記庫！")
+                                else:
+                                    # API 失敗，只儲存程式碼
+                                    meta = st.session_state.note_metadata
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"🗺️ {meta.get('title', '筆記')} - 心智圖",
+                                        content=f"```mermaid\n{st.session_state.mindmap_code}\n```",
+                                        category=meta.get('category', '其他'),
+                                        tags=meta.get('tags', []) + ['心智圖'],
+                                        difficulty=meta.get('difficulty', '中等')
+                                    )
+                                    st.warning("⚠️ 圖片轉換失敗，已儲存程式碼")
+                            except Exception as e:
+                                # 發生錯誤，只儲存程式碼
+                                meta = st.session_state.note_metadata
+                                data_manager.save_note(
+                                    user_id=st.session_state.user_id,
+                                    title=f"🗺️ {meta.get('title', '筆記')} - 心智圖",
+                                    content=f"```mermaid\n{st.session_state.mindmap_code}\n```",
+                                    category=meta.get('category', '其他'),
+                                    tags=meta.get('tags', []) + ['心智圖'],
+                                    difficulty=meta.get('difficulty', '中等')
+                                )
+                                st.warning(f"⚠️ 儲存圖片時發生錯誤，已儲存程式碼")
+                
+                with col_code:
+                    # 提供程式碼下載選項
+                    st.download_button(
+                        label="📄 下載程式碼",
+                        data=st.session_state.mindmap_code,
+                        file_name=f"{st.session_state.note_metadata.get('title', '心智圖')}_mindmap.mmd",
+                        mime="text/plain",
+                        use_container_width=True,
+                        key="download_mindmap_code_extra"
+                    )
+                
                 with st.expander("📋 查看 Mermaid 程式碼"):
                     st.code(st.session_state.mindmap_code, language="mermaid")
             
@@ -1185,10 +1478,131 @@ def render_note():
                 """
                 st.components.v1.html(diagram_html, height=600, scrolling=True)
                 
+                # 下載和儲存按鈕
+                col_download, col_save, col_code = st.columns(3)
+                
+                with col_download:
+                    # 使用 Mermaid Ink API 轉換成圖片
+                    try:
+                        import requests
+                        import urllib.parse
+                        
+                        # 編碼 Mermaid 程式碼
+                        encoded = base64.urlsafe_b64encode(st.session_state.system_diagram.encode('utf-8')).decode('ascii')
+                        
+                        # 使用 Mermaid Ink API
+                        img_url = f"https://mermaid.ink/img/{encoded}"
+                        
+                        # 下載圖片
+                        response = requests.get(img_url, timeout=10)
+                        if response.status_code == 200:
+                            st.download_button(
+                                label="📥 下載體系圖 (PNG)",
+                                data=response.content,
+                                file_name=f"{st.session_state.note_metadata.get('title', '法律體系圖')}_system.png",
+                                mime="image/png",
+                                use_container_width=True,
+                                key="download_system_png"
+                            )
+                        else:
+                            # API 失敗，提供程式碼下載
+                            st.download_button(
+                                label="📥 下載程式碼",
+                                data=st.session_state.system_diagram,
+                                file_name=f"{st.session_state.note_metadata.get('title', '法律體系圖')}_system.mmd",
+                                mime="text/plain",
+                                use_container_width=True,
+                                key="download_system_code"
+                            )
+                    except Exception as e:
+                        # 發生錯誤，提供程式碼下載
+                        st.download_button(
+                            label="📥 下載程式碼",
+                            data=st.session_state.system_diagram,
+                            file_name=f"{st.session_state.note_metadata.get('title', '法律體系圖')}_system.mmd",
+                            mime="text/plain",
+                            use_container_width=True,
+                            key="download_system_fallback"
+                        )
+                
+                with col_save:
+                    if st.button("💾 儲存到筆記庫", use_container_width=True, key="save_system"):
+                        with st.spinner("💾 正在儲存..."):
+                            try:
+                                import requests
+                                
+                                # 轉換成圖片
+                                encoded = base64.urlsafe_b64encode(st.session_state.system_diagram.encode('utf-8')).decode('ascii')
+                                img_url = f"https://mermaid.ink/img/{encoded}"
+                                response = requests.get(img_url, timeout=10)
+                                
+                                if response.status_code == 200:
+                                    # 成功取得圖片，轉換成 Base64
+                                    img_base64 = base64.b64encode(response.content).decode('ascii')
+                                    
+                                    # 建立包含圖片的 Markdown 內容
+                                    meta = st.session_state.note_metadata
+                                    content = f"""# {meta.get('title', '筆記')} - 法律體系圖
+
+![法律體系圖](data:image/png;base64,{img_base64})
+
+---
+
+## Mermaid 程式碼
+
+```mermaid
+{st.session_state.system_diagram}
+```
+"""
+                                    
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"📊 {meta.get('title', '筆記')} - 法律體系圖",
+                                        content=content,
+                                        category=meta.get('category', '其他'),
+                                        tags=meta.get('tags', []) + ['法律體系圖'],
+                                        difficulty=meta.get('difficulty', '中等')
+                                    )
+                                    st.success("✅ 法律體系圖（含圖片）已儲存到筆記庫！")
+                                else:
+                                    # API 失敗，只儲存程式碼
+                                    meta = st.session_state.note_metadata
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"📊 {meta.get('title', '筆記')} - 法律體系圖",
+                                        content=f"```mermaid\n{st.session_state.system_diagram}\n```",
+                                        category=meta.get('category', '其他'),
+                                        tags=meta.get('tags', []) + ['法律體系圖'],
+                                        difficulty=meta.get('difficulty', '中等')
+                                    )
+                                    st.warning("⚠️ 圖片轉換失敗，已儲存程式碼")
+                            except Exception as e:
+                                # 發生錯誤，只儲存程式碼
+                                meta = st.session_state.note_metadata
+                                data_manager.save_note(
+                                    user_id=st.session_state.user_id,
+                                    title=f"📊 {meta.get('title', '筆記')} - 法律體系圖",
+                                    content=f"```mermaid\n{st.session_state.system_diagram}\n```",
+                                    category=meta.get('category', '其他'),
+                                    tags=meta.get('tags', []) + ['法律體系圖'],
+                                    difficulty=meta.get('difficulty', '中等')
+                                )
+                                st.warning(f"⚠️ 儲存圖片時發生錯誤，已儲存程式碼")
+                
+                with col_code:
+                    # 提供程式碼下載選項
+                    st.download_button(
+                        label="📄 下載程式碼",
+                        data=st.session_state.system_diagram,
+                        file_name=f"{st.session_state.note_metadata.get('title', '法律體系圖')}_system.mmd",
+                        mime="text/plain",
+                        use_container_width=True,
+                        key="download_system_code_extra"
+                    )
+                
                 with st.expander("📋 查看 Mermaid 程式碼"):
                     st.code(st.session_state.system_diagram, language="mermaid")
-        
-        # 直接儲存筆記（不用 AI 生成）
+                  # 直接儲存筆記（不用 AI 生成）
         st.markdown("---")
         st.markdown("### ✍️ 或直接儲存原始筆記（不使用 AI）")
         
@@ -1502,30 +1916,55 @@ OCR 辨識文字：
                     st.success("✅ 已清空所有內容！")
                     st.rerun()
             
-            # 顯示轉錄結果
+            # 顯示轉錄結果（可編輯）
             if 'voice_transcription' in st.session_state:
                 st.markdown("---")
-                st.markdown("### 📝 轉錄結果")
-                st.text_area("轉錄文字", st.session_state.voice_transcription, height=200, key="voice_trans_display")
-            
-            # 顯示整理後的筆記
-            if 'voice_notes' in st.session_state:
-                st.markdown("### ✅ 整理後的筆記")
-                st.markdown(st.session_state.voice_notes)
+                st.markdown("### 📝 轉錄結果（可編輯）")
+                edited_transcription = st.text_area(
+                    "轉錄文字", 
+                    st.session_state.voice_transcription, 
+                    height=200, 
+                    key="voice_trans_edit"
+                )
+                st.session_state.voice_transcription = edited_transcription
                 
-                # 儲存按鈕
-                if st.button("💾 儲存筆記", use_container_width=True, type="primary", key="save_voice"):
+                # 儲存原始轉錄
+                if st.button("💾 儲存原始轉錄", use_container_width=True, type="secondary", key="save_raw_voice"):
+                    audio_name = audio_file.name.rsplit('.', 1)[0] if audio_file else "語音筆記"
                     data_manager.save_note(
                         user_id=st.session_state.user_id,
-                        title=f"語音筆記 - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                        content=st.session_state.voice_notes,
+                        title=f"🎤 {audio_name} (原始)",
+                        content=edited_transcription,
                         category=voice_category,
-                        tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['語音'],
+                        tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['語音', '原始'],
                         difficulty=voice_difficulty
                     )
-                    st.success("✅ 筆記已儲存！")
-                    del st.session_state.voice_transcription
-                    del st.session_state.voice_notes
+                    st.success("✅ 原始轉錄已儲存！")
+                    st.rerun()
+            
+            # 顯示整理後的筆記（可編輯）
+            if 'voice_notes' in st.session_state:
+                st.markdown("### ✨ AI 整理後的筆記（可編輯）")
+                edited_ai_notes = st.text_area(
+                    "編輯 AI 筆記",
+                    st.session_state.voice_notes,
+                    height=300,
+                    key="voice_ai_edit"
+                )
+                st.session_state.voice_notes = edited_ai_notes
+                
+                # 儲存 AI 筆記
+                if st.button("💾 儲存 AI 筆記", use_container_width=True, type="primary", key="save_voice"):
+                    audio_name = audio_file.name.rsplit('.', 1)[0] if audio_file else "語音筆記"
+                    data_manager.save_note(
+                        user_id=st.session_state.user_id,
+                        title=f"🎤 {audio_name}",
+                        content=edited_ai_notes,
+                        category=voice_category,
+                        tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['語音', 'AI整理'],
+                        difficulty=voice_difficulty
+                    )
+                    st.success("✅ AI 筆記已儲存！")
                     st.rerun()
 
 # ==================== AI 互動學習 ====================
@@ -1902,74 +2341,472 @@ def render_review():
     
     st.markdown("## 🔄 智慧複習推薦")
     
-    # 每次都重新取得待複習筆記
-    due_notes = data_manager.get_due_notes(st.session_state.user_id)
+    # 複習設定面板
+    if 'show_review_settings' not in st.session_state:
+        st.session_state.show_review_settings = False
     
-    # 簡化統計
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("📚 待複習筆記", len(due_notes))
-    with col2:
-        st.metric("✅ 今日已複習", data_manager.get_stats(st.session_state.user_id)['reviewed'])
+    # 複習間隔設定（可收起）
+    st.markdown("### ⚙️ 複習間隔設定")
     
-    if due_notes:
-        st.markdown(f'<div class="warning-box">⏰ 你有 {len(due_notes)} 則筆記需要複習！開始吧！</div>', unsafe_allow_html=True)
+    col_btn1, col_btn2 = st.columns([1, 5])
+    with col_btn1:
+        if st.button("▼ 展開" if not st.session_state.show_review_settings else "▲ 收起", use_container_width=True):
+            st.session_state.show_review_settings = not st.session_state.show_review_settings
+            st.rerun()
+    
+    # 顯示設定面板
+    if st.session_state.show_review_settings:
         
-        note = due_notes[0]
+        # 重要提示
+        st.info("ℹ️ **重要提示**：既有筆記的排程不會變動，新設定會在下次複習時生效。只有新的複習才會使用新設定。")
         
-        st.markdown(f"""
-        <div class="card">
-            <h3>{note.get('title', '無標題')}</h3>
-            <div style="margin: 1rem 0;">
-                <span class="tag">{note.get('category', '未分類')}</span>
-                <span style="color: #6b7280; margin-left: 1rem;">📝 已複習 {note.get('review_count', 0)} 次</span>
-                <span style="color: #6b7280; margin-left: 1rem;">🎯 難度: {note.get('difficulty', '中等')}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        from review_settings import ReviewSettings, PRESET_TEMPLATES
+        settings_manager = ReviewSettings(st.session_state.user_id)
+        current_settings = settings_manager.load_settings()
+        active_template = current_settings.get('active_template', 'standard')
         
-        with st.expander("📖 查看內容", expanded=True):
-            st.markdown(note.get('content', '無內容'))
+        # 顯示當前啟用的模板
+        if active_template in PRESET_TEMPLATES:
+            active_name = PRESET_TEMPLATES[active_template]["name"]
+        else:
+            custom_templates = current_settings.get("custom_templates", {})
+            if active_template in custom_templates:
+                active_name = f"📝 {custom_templates[active_template]['name']}"
+            else:
+                active_name = "📚 標準複習"
         
-        st.markdown("### 💭 記憶程度")
-        st.markdown("""
-        <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.5rem;">
-        根據你的記憶程度安排下次複習：<br>
-        完全不記得(1天) / 有點印象(3天) / 大致記得(7天) / 很熟悉(14天) / 完全精通(30天)
-        </div>
-        """, unsafe_allow_html=True)
+        st.success(f"✅ **當前啟用模板**：{active_name}")
         
-        # 記住上次的選擇
-        if 'last_memory_level' not in st.session_state:
-            st.session_state.last_memory_level = 2  # 預設「大致記得」
+        # 取得所有模板
+        all_templates = settings_manager.get_all_templates()
         
-        memory_level = st.radio(
-            "選擇",
-            ["❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"],
-            horizontal=False,
-            index=st.session_state.last_memory_level,
-            key=f"memory_{note['id']}",
-            label_visibility="collapsed"
-        )
+        # 模板選擇
+        st.markdown("#### 📋 選擇複習模板")
         
-        if st.button("✅ 確認並進入下一則", use_container_width=True, type="primary"):
-            level_map = {
-                "❌ 完全不記得": "再次",
-                "😐 有點印象": "困難", 
-                "😊 大致記得": "良好",
-                "✅ 很熟悉": "容易",
-                "🌟 完全精通": "精通"
+        # 自訂模板
+        custom_templates = current_settings.get("custom_templates", {})
+        
+        # 左右分欄
+        col_preset, col_custom = st.columns(2)
+        
+        with col_preset:
+            st.markdown("**預設模板**")
+            
+            # 預設模板選項（使用 radio）
+            preset_options = {
+                "intensive": PRESET_TEMPLATES["intensive"]["name"],
+                "standard": PRESET_TEMPLATES["standard"]["name"],
+                "relaxed": PRESET_TEMPLATES["relaxed"]["name"]
             }
             
-            # 記住這次的選擇
-            memory_options = ["❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"]
-            st.session_state.last_memory_level = memory_options.index(memory_level)
+            # 找到當前選中的預設模板（如果是）
+            if active_template in preset_options:
+                preset_index = list(preset_options.keys()).index(active_template)
+            else:
+                preset_index = 1  # 預設為標準
             
-            data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+            selected_preset = st.radio(
+                "選擇預設模板",
+                options=list(preset_options.keys()),
+                format_func=lambda x: preset_options[x],
+                index=preset_index,
+                key="preset_radio",
+                label_visibility="collapsed"
+            )
+            
+            # 顯示選中的預設模板說明
+            if selected_preset:
+                st.caption(PRESET_TEMPLATES[selected_preset]["description"])
+                with st.expander("📊 查看間隔詳情", expanded=False):
+                    intervals = PRESET_TEMPLATES[selected_preset]["intervals"]
+                    for level, days in intervals.items():
+                        st.markdown(f"**{level}**：{' → '.join([f'{d}天' for d in days])}")
+                
+                # 切換按鈕（如果不是當前啟用的）
+                if selected_preset != active_template:
+                    if st.button("✅ 切換到此模板", key="switch_to_preset", use_container_width=True, type="primary"):
+                        if settings_manager.set_active_template(selected_preset):
+                            st.success(f"✅ 已切換到 {preset_options[selected_preset]}！")
+                            st.rerun()
+        
+        with col_custom:
+            st.markdown("**自訂模板**")
+            
+            if custom_templates:
+                # 使用 radio 按鈕選擇自訂模板
+                custom_keys = list(custom_templates.keys())
+                custom_labels = {key: custom_templates[key]['name'] for key in custom_keys}
+                
+                # 找到當前選中的自訂模板（如果是）
+                if active_template in custom_keys:
+                    custom_index = custom_keys.index(active_template)
+                else:
+                    custom_index = 0
+                
+                selected_custom = st.radio(
+                    "選擇自訂模板",
+                    options=custom_keys,
+                    format_func=lambda x: f"📝 {custom_labels[x]}",
+                    index=custom_index if active_template in custom_keys else None,
+                    key="custom_radio",
+                    label_visibility="collapsed"
+                )
+                
+                # 顯示選中的自訂模板詳情
+                if selected_custom:
+                    template = custom_templates[selected_custom]
+                    
+                    with st.expander("📊 查看間隔詳情", expanded=False):
+                        intervals = template["intervals"]
+                        for level, days in intervals.items():
+                            st.markdown(f"**{level}**：{' → '.join([f'{d}天' for d in days])}")
+                    
+                    # 操作按鈕
+                    btn_col1, btn_col2, btn_col3 = st.columns(3)
+                    
+                    with btn_col1:
+                        # 切換按鈕（如果不是當前啟用的）
+                        if selected_custom != active_template:
+                            if st.button("切換", key="switch_to_custom", use_container_width=True):
+                                if settings_manager.set_active_template(selected_custom):
+                                    st.success(f"✅ 已切換到 {template['name']}！")
+                                    st.rerun()
+                    
+                    with btn_col2:
+                        # 編輯按鈕
+                        if st.button("✏️ 編輯", key="edit_custom", use_container_width=True):
+                            st.session_state.editing_template = selected_custom
+                            st.rerun()
+                    
+                    with btn_col3:
+                        # 刪除按鈕
+                        if st.button("🗑️", key="delete_custom", use_container_width=True):
+                            if settings_manager.delete_custom_template(selected_custom):
+                                st.success("✅ 模板已刪除！")
+                                st.rerun()
+                
+                # 編輯模板
+                if 'editing_template' in st.session_state and st.session_state.editing_template in custom_templates:
+                    st.markdown("---")
+                    st.markdown("**✏️ 編輯模板**")
+                    
+                    editing_key = st.session_state.editing_template
+                    editing_template = custom_templates[editing_key]
+                    
+                    new_name = st.text_input(
+                        "模板名稱",
+                        value=editing_template['name'],
+                        key="edit_template_name"
+                    )
+                    
+                    st.info("💡 **提示**：輸入每次複習的間隔天數，用逗號分隔。例如：2,6,14,28,60\n\n**長度不限**，代表複習次數。")
+                    
+                    edited_intervals = {}
+                    levels = ["完全精通", "很熟悉", "大致記得", "有點印象", "完全不記得"]
+                    intervals_valid = True
+                    
+                    for level in levels:
+                        current_intervals = editing_template['intervals'].get(level, [2, 6, 14, 28, 60])
+                        interval_str = ','.join([str(i) for i in current_intervals])
+                        
+                        user_input = st.text_input(
+                            f"{level}",
+                            value=interval_str,
+                            key=f"edit_interval_{level}",
+                            help="輸入間隔天數，用逗號分隔（1-60天，長度不限）"
+                        )
+                        
+                        try:
+                            intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
+                            if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
+                                edited_intervals[level] = intervals
+                            else:
+                                st.error(f"❌ {level}：間隔必須在1-60天之間")
+                                intervals_valid = False
+                        except:
+                            st.error(f"❌ {level}：格式錯誤，請使用逗號分隔的數字")
+                            intervals_valid = False
+                    
+                    edit_col1, edit_col2 = st.columns(2)
+                    with edit_col1:
+                        if st.button("💾 儲存修改", use_container_width=True, type="primary", key="save_edit_template"):
+                            if not new_name:
+                                st.error("❌ 請輸入模板名稱")
+                            elif new_name != editing_template['name'] and new_name in [t['name'] for t in custom_templates.values()]:
+                                st.error("❌ 模板名稱已存在")
+                            elif not intervals_valid:
+                                st.error("❌ 請修正間隔設定錯誤")
+                            else:
+                                # 刪除舊模板，新增修改後的模板
+                                settings_manager.delete_custom_template(editing_key)
+                                if settings_manager.add_custom_template(new_name, edited_intervals):
+                                    # 如果是當前啟用的模板，更新啟用狀態
+                                    if active_template == editing_key:
+                                        settings_manager.set_active_template(new_name)
+                                    st.session_state.editing_template = None
+                                    st.success("✅ 模板已更新！")
+                                    st.rerun()
+                                else:
+                                    st.error("❌ 更新失敗")
+                    
+                    with edit_col2:
+                        if st.button("❌ 取消", use_container_width=True, key="cancel_edit_template"):
+                            st.session_state.editing_template = None
+                            st.rerun()
+            else:
+                st.info("尚無自訂模板")
+            
+            # 新增自訂模板（移除上方分隔線）
+            st.markdown("")  # 間距
+            st.markdown("**➕ 新增自訂模板**")
+            
+            with st.expander("點擊展開新增"):
+                new_template_name = st.text_input(
+                    "模板名稱",
+                    placeholder="例如：我的考前衝刺",
+                    key="new_template_name"
+                )
+                
+                st.info("💡 **提示**：輸入每次複習的間隔天數，用逗號分隔。例如：2,6,14,28,60\n\n**長度不限**，代表複習次數。可以設定任意多次，例如 10 次、20 次都可以。")
+                
+                custom_intervals = {}
+                levels = ["完全精通", "很熟悉", "大致記得", "有點印象", "完全不記得"]
+                intervals_valid = True
+                
+                for level in levels:
+                    user_input = st.text_input(
+                        f"{level}",
+                        value="2,6,14,28,60",
+                        key=f"new_interval_{level}",
+                        help="輸入間隔天數，用逗號分隔（1-60天，長度不限）"
+                    )
+                    
+                    try:
+                        intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
+                        if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
+                            custom_intervals[level] = intervals
+                        else:
+                            st.error(f"❌ {level}：間隔必須在1-60天之間")
+                            intervals_valid = False
+                    except:
+                        st.error(f"❌ {level}：格式錯誤，請使用逗號分隔的數字")
+                        intervals_valid = False
+                
+                if st.button("💾 儲存新模板", use_container_width=True, type="primary", key="save_new_template"):
+                    if not new_template_name:
+                        st.error("❌ 請輸入模板名稱")
+                    elif new_template_name in PRESET_TEMPLATES:
+                        st.error("❌ 模板名稱不能與預設模板相同")
+                    elif new_template_name in custom_templates:
+                        st.error("❌ 模板名稱已存在")
+                    elif not intervals_valid:
+                        st.error("❌ 請修正間隔設定錯誤")
+                    else:
+                        if settings_manager.add_custom_template(new_template_name, custom_intervals):
+                            st.success(f"✅ 模板「{new_template_name}」已新增！")
+                            st.rerun()
+                        else:
+                            st.error("❌ 新增失敗")
+        
+        st.markdown("---")
+    
+    # 記憶程度篩選
+    st.markdown("### 🎯 篩選條件")
+    
+    # 儲存篩選狀態
+    if 'active_filter' not in st.session_state:
+        st.session_state.active_filter = "全部(待複習)"
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        memory_filter = st.selectbox(
+            "選擇記憶程度",
+            ["全部(待複習)", "完全不記得", "有點印象", "大致記得", "很熟悉", "完全精通", "未複習過"],
+            key="memory_filter_select",
+            help="全部(待複習)=每日複習模式 | 其他=查看該類別所有筆記"
+        )
+    with col2:
+        st.write("")  # 對齊
+        if st.button("✅ 確定篩選", use_container_width=True, type="primary"):
+            st.session_state.active_filter = memory_filter
             st.rerun()
+    
+    # 使用已確定的篩選條件
+    active_filter = st.session_state.active_filter
+    
+    # 取得所有筆記
+    all_notes = data_manager.get_all_notes(st.session_state.user_id)
+    all_due_notes = data_manager.get_due_notes(st.session_state.user_id)
+    
+    # 根據篩選條件決定顯示模式
+    if active_filter == "全部(待複習)":
+        # ========== 每日複習模式（列表顯示）==========
+        filtered_notes = all_due_notes
+        
+        # 按照下次複習時間排序（由近到遠）
+        filtered_notes = sorted(filtered_notes, key=lambda x: x.get('next_review', '9999-12-31'))
+        
+        st.markdown(f'<div class="info-box">📋 今日待複習：{len(filtered_notes)} 則筆記</div>', unsafe_allow_html=True)
+        
+        if filtered_notes:
+            # 列表模式：顯示所有待複習筆記
+            for i, note in enumerate(filtered_notes):
+                last_memory_display = {
+                    "完全不記得": "❌ 完全不記得", "有點印象": "😐 有點印象", "大致記得": "😊 大致記得",
+                    "很熟悉": "✅ 很熟悉", "完全精通": "🌟 完全精通",
+                    "再次": "❌ 完全不記得", "困難": "😐 有點印象", "良好": "😊 大致記得",
+                    "容易": "✅ 很熟悉", "精通": "🌟 完全精通", "": "🆕 未複習過"
+                }
+                last_memory = last_memory_display.get(note.get('last_memory_level', ''), '🆕 未複習過')
+                
+                # 格式化建立時間用於標題顯示
+                created_time = note.get('created_at', '')
+                created_display = created_time[:10] if created_time else 'N/A'
+                
+                with st.expander(f"📝 {note.get('title', '無標題')} | 📅 {created_display}", expanded=False):
+                    st.markdown(f"""
+                    <div style="margin-bottom: 1rem;">
+                        <span class="tag">{note.get('category', '未分類')}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">📝 已複習 {note.get('review_count', 0)} 次</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">🎯 難度: {note.get('difficulty', '中等')}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">💭 上次: {last_memory}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 下次複習時間
+                    next_review = note.get('next_review', '')
+                    if next_review:
+                        try:
+                            from datetime import datetime
+                            next_review_dt = datetime.fromisoformat(next_review)
+                            next_review_display = next_review_dt.strftime('%Y-%m-%d %H:%M')
+                            st.markdown(f"**下次複習**：{next_review_display}")
+                        except:
+                            st.markdown(f"**下次複習**：{next_review[:16]}")
+                    else:
+                        st.markdown(f"**下次複習**：未設定")
+                    
+                    st.markdown("---")
+                    st.markdown("**內容：**")
+                    st.markdown(note.get('content', '無內容'))
+                    
+                    st.markdown("---")
+                    st.markdown("**💭 記憶程度（熟悉度）**")
+                    st.caption("根據你的記憶程度安排下次複習：完全不記得(2天) / 有點印象(2→4→8天) / 大致記得(2→6→14天) / 很熟悉(4→10→20天) / 完全精通(6→14→28天)")
+                    
+                    # 設定預設值：根據上次記憶程度
+                    last_memory_map = {
+                        "完全不記得": 0, "有點印象": 1, "大致記得": 2, "很熟悉": 3, "完全精通": 4,
+                        "再次": 0, "困難": 1, "良好": 2, "容易": 3, "精通": 4, "": 0
+                    }
+                    default_index = last_memory_map.get(note.get('last_memory_level', ''), 0)
+                    
+                    memory_level = st.radio(
+                        "選擇記憶程度",
+                        ["❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"],
+                        horizontal=True,
+                        index=default_index,
+                        key=f"review_memory_{note['id']}"
+                    )
+                    
+                    if st.button("✅ 確認", key=f"review_btn_{note['id']}", type="primary"):
+                        level_map = {
+                            "❌ 完全不記得": "完全不記得", "😐 有點印象": "有點印象",
+                            "😊 大致記得": "大致記得", "✅ 很熟悉": "很熟悉", "🌟 完全精通": "完全精通"
+                        }
+                        data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                        # 更新完成計數
+                        st.session_state.completed_in_session.add(note['id'])
+                        st.success("✅ 已更新！")
+                        st.rerun()
+        else:
+            st.markdown('<div class="success-box">🎉 太棒了！今日複習都已完成！</div>', unsafe_allow_html=True)
+            st.balloons()
+    
     else:
-        st.markdown('<div class="success-box">🎉 太棒了！目前沒有待複習的筆記！</div>', unsafe_allow_html=True)
-        st.balloons()
+        # ========== 記憶程度篩選列表模式 ==========
+        if active_filter == "未複習過":
+            filtered_notes = [n for n in all_notes if n.get('review_count', 0) == 0]
+        else:
+            old_value_map = {'完全不記得': '再次', '有點印象': '困難', '大致記得': '良好', '很熟悉': '容易', '完全精通': '精通'}
+            old_value = old_value_map.get(active_filter, '')
+            filtered_notes = [n for n in all_notes if n.get('last_memory_level', '') in [active_filter, old_value]]
+        
+        # 按照下次複習時間排序（由近到遠）
+        filtered_notes = sorted(filtered_notes, key=lambda x: x.get('next_review', '9999-12-31'))
+        
+        st.markdown(f'<div class="info-box">📋 篩選結果：找到 {len(filtered_notes)} 則「{active_filter}」的筆記</div>', unsafe_allow_html=True)
+        
+        if filtered_notes:
+            # 列表模式：顯示所有筆記
+            for i, note in enumerate(filtered_notes):
+                last_memory_display = {
+                    "完全不記得": "❌ 完全不記得", "有點印象": "😐 有點印象", "大致記得": "😊 大致記得",
+                    "很熟悉": "✅ 很熟悉", "完全精通": "🌟 完全精通",
+                    "再次": "❌ 完全不記得", "困難": "😐 有點印象", "良好": "😊 大致記得",
+                    "容易": "✅ 很熟悉", "精通": "🌟 完全精通", "": "🆕 未複習過"
+                }
+                last_memory = last_memory_display.get(note.get('last_memory_level', ''), '🆕 未複習過')
+                
+                # 格式化建立時間用於標題顯示
+                created_time = note.get('created_at', '')
+                created_display = created_time[:10] if created_time else 'N/A'
+                
+                with st.expander(f"📝 {note.get('title', '無標題')} | 📅 {created_display}", expanded=False):
+                    st.markdown(f"""
+                    <div style="margin-bottom: 1rem;">
+                        <span class="tag">{note.get('category', '未分類')}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">📝 已複習 {note.get('review_count', 0)} 次</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">🎯 難度: {note.get('difficulty', '中等')}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">💭 記憶程度: {last_memory}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 下次複習時間
+                    next_review = note.get('next_review', '')
+                    if next_review:
+                        try:
+                            from datetime import datetime
+                            next_review_dt = datetime.fromisoformat(next_review)
+                            next_review_display = next_review_dt.strftime('%Y-%m-%d %H:%M')
+                            st.markdown(f"**下次複習**：{next_review_display}")
+                        except:
+                            st.markdown(f"**下次複習**：{next_review[:16]}")
+                    else:
+                        st.markdown(f"**下次複習**：未設定")
+                    
+                    st.markdown("---")
+                    st.markdown("**內容：**")
+                    st.markdown(note.get('content', '無內容'))
+                    
+                    st.markdown("---")
+                    st.markdown("**更新記憶程度：**")
+                    
+                    # 設定預設值：根據上次記憶程度
+                    last_memory_map = {
+                        "完全不記得": 0, "有點印象": 1, "大致記得": 2, "很熟悉": 3, "完全精通": 4,
+                        "再次": 0, "困難": 1, "良好": 2, "容易": 3, "精通": 4, "": 0
+                    }
+                    default_index = last_memory_map.get(note.get('last_memory_level', ''), 0)
+                    
+                    memory_level = st.radio(
+                        "選擇新的記憶程度",
+                        ["❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"],
+                        horizontal=True,
+                        index=default_index,
+                        key=f"update_memory_{note['id']}"
+                    )
+                    
+                    if st.button("💾 更新", key=f"btn_{note['id']}", type="secondary"):
+                        level_map = {
+                            "❌ 完全不記得": "完全不記得", "😐 有點印象": "有點印象",
+                            "😊 大致記得": "大致記得", "✅ 很熟悉": "很熟悉", "🌟 完全精通": "完全精通"
+                        }
+                        data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                        st.success("✅ 已更新！")
+                        st.rerun()
+        else:
+            st.info(f"📭 目前沒有標記為「{active_filter}」的筆記")
 
 # ==================== 歷史資料庫 ====================
 def render_database():
@@ -2011,12 +2848,41 @@ def render_database():
     
     if notes:
         for note in notes:
-            with st.expander(f"📝 {note.get('title', '無標題')} - {note.get('category', '未分類')}", expanded=False):
+            # 格式化建立時間用於標題顯示
+            created_time = note.get('created_at', '')
+            created_display = created_time[:10] if created_time else 'N/A'
+            
+            with st.expander(f"📝 {note.get('title', '無標題')} - {note.get('category', '未分類')} | 📅 {created_display}", expanded=False):
                 col1, col2 = st.columns([3, 1])
                 with col1:
-                    st.markdown(f"**建立時間**：{note.get('created_at', 'N/A')[:10]}")
+                    st.markdown(f"**建立時間**：{created_display}")
+                    
+                    # 下次複習時間
+                    next_review = note.get('next_review', '')
+                    if next_review:
+                        try:
+                            from datetime import datetime
+                            next_review_dt = datetime.fromisoformat(next_review)
+                            next_review_display = next_review_dt.strftime('%Y-%m-%d %H:%M')
+                            st.markdown(f"**下次複習**：{next_review_display}")
+                        except:
+                            st.markdown(f"**下次複習**：{next_review[:16]}")
+                    else:
+                        st.markdown(f"**下次複習**：未設定")
+                    
                     st.markdown(f"**複習次數**：{note.get('review_count', 0)} 次")
                     st.markdown(f"**難度**：🎯 {note.get('difficulty', '中等')}")
+                    
+                    # 熟悉度顯示
+                    last_memory_display = {
+                        "完全不記得": "❌ 完全不記得", "有點印象": "😐 有點印象", "大致記得": "😊 大致記得",
+                        "很熟悉": "✅ 很熟悉", "完全精通": "🌟 完全精通",
+                        "再次": "❌ 完全不記得", "困難": "😐 有點印象", "良好": "😊 大致記得",
+                        "容易": "✅ 很熟悉", "精通": "🌟 完全精通", "": "🆕 未複習過"
+                    }
+                    last_memory = last_memory_display.get(note.get('last_memory_level', ''), '🆕 未複習過')
+                    st.markdown(f"**熟悉度**：{last_memory}")
+                    
                     if note.get('tags'):
                         tags_display = " ".join([f"`{tag}`" for tag in note.get('tags', []) if tag])
                         if tags_display.strip():
@@ -2178,21 +3044,50 @@ def render_database():
                                                      index=["極簡單", "簡單", "中等", "困難", "極困難"].index(note.get('difficulty', '中等')) if note.get('difficulty') in ["極簡單", "簡單", "中等", "困難", "極困難"] else 2,
                                                      key=f"edit_diff_{note['id']}")
                     with col3:
-                        tags_str = ','.join(note.get('tags', []))
-                        new_tags = st.text_input("標籤", value=tags_str, key=f"edit_tags_{note['id']}")
+                        # 熟悉度選擇器
+                        familiarity_options = ["🆕 未複習過", "❌ 完全不記得", "😐 有點印象", "😊 大致記得", "✅ 很熟悉", "🌟 完全精通"]
+                        familiarity_map = {
+                            "": 0, "完全不記得": 1, "有點印象": 2, "大致記得": 3, "很熟悉": 4, "完全精通": 5,
+                            "再次": 1, "困難": 2, "良好": 3, "容易": 4, "精通": 5
+                        }
+                        current_familiarity_index = familiarity_map.get(note.get('last_memory_level', ''), 0)
+                        new_familiarity = st.selectbox("熟悉度", familiarity_options, 
+                                                      index=current_familiarity_index,
+                                                      key=f"edit_fam_{note['id']}")
+                    
+                    tags_str = ','.join(note.get('tags', []))
+                    new_tags = st.text_input("標籤（以逗號分隔）", value=tags_str, placeholder="例如：重點,易錯,常考", key=f"edit_tags_{note['id']}")
                     
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("💾 儲存修改", use_container_width=True, type="primary", key=f"save_edit_{note['id']}"):
                             # 更新筆記
+                            # 將熟悉度選項轉換回資料庫格式
+                            familiarity_reverse_map = {
+                                "🆕 未複習過": "", "❌ 完全不記得": "完全不記得", "😐 有點印象": "有點印象",
+                                "😊 大致記得": "大致記得", "✅ 很熟悉": "很熟悉", "🌟 完全精通": "完全精通"
+                            }
+                            new_memory_level = familiarity_reverse_map.get(new_familiarity, '')
+                            
+                            # 檢查熟悉度是否有變更
+                            old_memory_level = note.get('last_memory_level', '')
+                            familiarity_changed = (new_memory_level != old_memory_level) and new_memory_level != ''
+                            
+                            # 更新基本資料
                             update_data = {
                                 'title': new_title,
                                 'content': new_content,
                                 'category': new_category,
                                 'difficulty': new_difficulty,
-                                'tags': ','.join([t.strip() for t in new_tags.split(',')]) if new_tags else ''
+                                'tags': ','.join([t.strip() for t in new_tags.split(',')]) if new_tags else '',
+                                'last_memory_level': new_memory_level
                             }
                             data_manager.update_note(note['id'], update_data)
+                            
+                            # 如果熟悉度有變更，重新計算下次複習時間
+                            if familiarity_changed:
+                                data_manager.update_review_schedule(note['id'], new_memory_level, st.session_state.user_id)
+                            
                             st.session_state.editing_note = None
                             st.success("✅ 修改已儲存！")
                             st.rerun()
