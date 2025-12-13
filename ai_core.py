@@ -78,25 +78,41 @@ class AICore:
             print(f"❌ 嵌入生成錯誤: {e}")
             return [0.0] * Config.EMBEDDING_DIMENSION
     
-    def add_to_knowledge_base(self, content: str, metadata: Dict) -> bool:
-        """新增內容到知識庫"""
+    def add_to_knowledge_base(self, content: str, metadata: dict) -> bool:
+        """將內容加入知識庫"""
         try:
+            # 生成嵌入向量
             embedding = self.generate_embedding(content)
-            doc_id = f"{metadata.get('type', 'doc')}_{int(time.time() * 1000)}"
             
+            # 生成唯一 ID
+            vector_id = f"{metadata.get('type', 'note')}_{metadata.get('note_id', 'unknown')}_{hash(content) % 10000}"
+            
+            # 精簡 metadata，只保留必要資訊（避免超過 40KB 限制）
+            compact_metadata = {
+                'note_id': metadata.get('note_id', ''),
+                'user_id': metadata.get('user_id', ''),
+                'title': metadata.get('title', '')[:200],  # 限制標題長度
+                'category': metadata.get('category', ''),
+                'difficulty': metadata.get('difficulty', ''),
+                'type': metadata.get('type', 'note'),
+                # 只儲存標籤列表，不儲存完整內容
+                'tags': metadata.get('tags', [])[:10] if isinstance(metadata.get('tags'), list) else [],
+                # 儲存內容預覽（前 500 字），不儲存完整內容
+                'content': content[:500] + '...' if len(content) > 500 else content,
+                # 完整內容儲存在 full_content（但也要限制大小）
+                'full_content': content[:5000] + '...' if len(content) > 5000 else content
+            }
+            
+            # 上傳到 Pinecone
             self.index.upsert(
                 vectors=[{
-                    'id': doc_id,
+                    'id': vector_id,
                     'values': embedding,
-                    'metadata': {
-                        'content': content[:1000],
-                        'full_content': content,
-                        **metadata
-                    }
+                    'metadata': compact_metadata
                 }]
             )
             
-            print(f"✅ 已加入知識庫: {metadata.get('title', 'Untitled')}")
+            print(f"✅ 已加入知識庫: {metadata.get('title', 'Unknown')}")
             return True
             
         except Exception as e:
