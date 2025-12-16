@@ -2,6 +2,10 @@
 批次匯入現有筆記到 Pinecone 向量資料庫
 用於將 Airtable 中的舊筆記加入 Pinecone，啟用智慧搜尋功能
 """
+# -*- coding: utf-8 -*-
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from data_manager import DataManager
 from ai_core import AICore

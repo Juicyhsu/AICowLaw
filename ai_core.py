@@ -163,9 +163,9 @@ class AICore:
             )
             
             # 除錯：顯示所有結果的分數
-            print(f"🔍 Pinecone 返回 {len(results.get('matches', []))} 個結果")
+            print(f"[Search] Pinecone returned {len(results.get('matches', []))} results")
             for i, match in enumerate(results.get('matches', [])[:5]):
-                print(f"  結果 {i+1}: 分數 {match['score']:.3f} - {match['metadata'].get('title', 'N/A')}")
+                print(f"  Result {i+1}: Score {match['score']:.3f} - {match['metadata'].get('title', 'N/A')}")
             
             filtered_results = []
             for match in results['matches']:
@@ -181,19 +181,19 @@ class AICore:
             filtered_results = filtered_results[:top_k]
             
             if filtered_results:
-                print(f"✅ 過濾後找到 {len(filtered_results)} 個高度相關結果（閾值 >= 0.85）")
+                print(f"[OK] Found {len(filtered_results)} highly relevant results (threshold >= 0.85)")
             else:
-                print(f"⚠️ 沒有找到相關度 >= 0.85 的結果")
+                print(f"[Warning] No results with relevance >= 0.85")
                 # 顯示最高分數供診斷
                 if results.get('matches'):
                     max_score = results['matches'][0]['score']
-                    print(f"   最高分數: {max_score:.3f} (未達標準)")
-                    print(f"   💡 建議：執行 rebuild_pinecone_index.py 重建索引")
+                    print(f"   Max score: {max_score:.3f} (below threshold)")
+                    print(f"   Suggestion: Run rebuild_pinecone_index.py")
             
             return filtered_results
             
         except Exception as e:
-            print(f"❌ 搜尋失敗: {e}")
+            print(f"[Error] Search failed: {e}")
             import traceback
             traceback.print_exc()
             return []

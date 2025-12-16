@@ -2,6 +2,10 @@
 Pinecone 索引重建腳本
 用於清空並重建 Pinecone 向量資料庫，解決索引損壞或重複向量問題
 """
+# -*- coding: utf-8 -*-
+import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 from pinecone import Pinecone
 from config import Config
