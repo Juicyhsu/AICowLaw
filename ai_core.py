@@ -418,19 +418,39 @@ class AICore:
             for msg in chat_history[-5:]
         ])
         
+        # 參考書模式：使用知識庫搜尋相關筆記
+        knowledge_context = ""
+        if mode == "reference":
+            try:
+                # 搜尋知識庫中的相關筆記
+                search_results = self.search_knowledge_base(message, top_k=3)
+                if search_results:
+                    knowledge_context = "\n\n【相關筆記參考】\n"
+                    for i, result in enumerate(search_results, 1):
+                        knowledge_context += f"\n參考資料 {i}：\n{result['content']}\n"
+                    print(f"✅ 找到 {len(search_results)} 個相關筆記")
+                else:
+                    print("⚠️ 沒有找到相關筆記，使用一般知識回答")
+            except Exception as e:
+                print(f"⚠️ 知識庫搜尋失敗：{e}")
+        
         mode_prompts = {
-            "reference": """你是一位專業的法律參考書助手。學生會問你各種法律問題，請：
+            "reference": f"""你是一位專業的法律參考書助手。學生會問你各種法律問題，請：
+- 優先參考下方的【相關筆記參考】來回答
+- 如果筆記中有相關內容，請引用並說明
 - 提供清晰、準確的答案
 - 引用相關法條
 - 用易懂的方式解釋複雜概念
 - 保持專業但友善的語氣
-- 只輸出回答內容，不要有開場白或結尾祝福""",
+- 只輸出回答內容，不要有開場白或結尾祝福{knowledge_context}""",
 
             "socratic": """你是一位使用蘇格拉底問答法的法律老師。請：
-- 用提問引導學生思考
-- 不要直接給答案，而是引導學生自己找到答案
+- 優先用提問引導學生思考
+- 如果學生明確要求直接答案（例如：「直接告訴我答案」、「不要問了直接說」），就直接給答案
+- 如果學生已經思考過但卡住，可以適時給予提示或答案
 - 循序漸進地深入探討
 - 讚賞學生的思考過程
+- 保持彈性，根據學生的需求調整教學方式
 - 只輸出回答內容，不要有開場白或結尾祝福""",
 
             "game": """你是一位出題測驗的法律老師。請：

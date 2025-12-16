@@ -1135,15 +1135,6 @@ def render_note():
             
             st.markdown("### 💾 儲存與下載")
             
-            # 測試模式開關
-            test_mode = st.checkbox(
-                "🧪 測試模式（立即複習）", 
-                value=False,
-                help="開啟後，筆記會立即出現在複習列表（測試用）。正式使用請關閉。"
-            )
-            if test_mode:
-                st.warning("⚠️ 測試模式已開啟：筆記將立即可複習")
-            
             # 儲存選項
             col1, col2 = st.columns(2)
             with col1:
@@ -1669,25 +1660,45 @@ def render_note():
                             if 'pdf' in file_type:
                                 # PDF 處理
                                 import fitz
+                                # 重新讀取文件（避免指針問題）
+                                uploaded_file.seek(0)
                                 pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                                 
                                 full_text = ""
                                 for page_num in range(pdf_document.page_count):
                                     page = pdf_document[page_num]
-                                    full_text += page.get_text()
+                                    page_text = page.get_text()
+                                    if page_text.strip():  # 只加入非空頁面
+                                        full_text += f"\n--- 第 {page_num + 1} 頁 ---\n{page_text}"
                                 
-                                ocr_prompt = f"""請整理以下 PDF 內容成完整的筆記，包括所有文字、圖表說明。
+                                pdf_document.close()
+                                
+                                # 檢查是否有內容
+                                if not full_text.strip():
+                                    st.error("❌ PDF 中沒有可讀取的文字內容（可能是掃描版 PDF）")
+                                    st.info("💡 提示：如果是掃描版 PDF，請先轉換為圖片後使用圖片辨識功能")
+                                else:
+                                    st.success(f"✅ 成功讀取 {pdf_document.page_count} 頁，共 {len(full_text)} 字")
+                                    
+                                    ocr_prompt = f"""請整理以下 PDF 內容成完整的筆記。
 
 PDF 內容：
 {full_text}
 
-請完整呈現所有內容，包括圖表的文字說明。只輸出筆記內容。用繁體中文。"""
-                                
-                                response = ai_core.model.generate_content(ocr_prompt)
+要求：
+1. 保持原有的結構和層次
+2. 整理成清晰易讀的格式
+3. 如果有重複內容，請合併
+4. 只輸出筆記內容，不要有開場白或結尾
+
+用繁體中文。"""
+                                    
+                                    response = ai_core.model.generate_content(ocr_prompt)
                                 
                             else:
                                 # 圖片處理
                                 import PIL.Image
+                                uploaded_file.seek(0)  # 重置文件指針
                                 img = PIL.Image.open(uploaded_file)
                                 
                                 ocr_prompt = """請辨識圖片中的所有內容，包括文字、圖表、表格等，完整呈現成筆記。
@@ -1715,6 +1726,8 @@ PDF 內容：
                             
                         except Exception as e:
                             st.error(f"❌ 辨識失敗：{e}")
+                            import traceback
+                            st.code(traceback.format_exc())
                             st.info("請確認已安裝：pip install PyMuPDF Pillow")
         
         # 顯示辨識結果
