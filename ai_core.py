@@ -4,6 +4,7 @@
 """
 
 import google.generativeai as genai
+from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 from config import Config
 from ai_cache import AICache
@@ -23,19 +24,21 @@ class AICore:
             
             # 初始化模型
             self.model = genai.GenerativeModel(Config.GEMINI_MODEL)
-            self.embedding_model = Config.EMBEDDING_MODEL
+            
+            # 初始化 OpenAI (用於 embedding)
+            self.openai_client = OpenAI(api_key=Config.OPENAI_API_KEY)
             
             # 初始化 Pinecone
             self.pc = Pinecone(api_key=Config.PINECONE_API_KEY)
             self.index = self._init_pinecone_index()
             
-            # 初始化 AI 快取
-            self.cache = AICache(cache_file="ai_cache.json", max_age_hours=24)
+            # 初始化快取
+            self.cache = AICache()
             
-            print("✅ AI 服務初始化成功")
+            print("[OK] AI service initialized successfully")
             
         except Exception as e:
-            print(f"❌ AI 初始化失敗: {e}")
+            print(f"[Error] AI initialization failed: {e}")
             raise
     
     def _init_pinecone_index(self):
@@ -66,25 +69,21 @@ class AICore:
         return index
     
     def generate_embedding(self, text: str, task_type: str = "retrieval_document") -> List[float]:
-        """生成文字嵌入向量
+        """生成文字嵌入向量 (使用 OpenAI)
         
         Args:
             text: 要生成向量的文字
-            task_type: 任務類型
-                - "retrieval_document": 用於儲存文檔（預設）
-                - "retrieval_query": 用於搜尋查詢
-                - "semantic_similarity": 用於語義相似度比較
+            task_type: 任務類型 (忽略，OpenAI 不需要)
         """
         try:
-            result = genai.embed_content(
-                model=Config.EMBEDDING_MODEL,
-                content=text,
-                task_type=task_type
+            response = self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text
             )
-            return result['embedding']
+            return response.data[0].embedding
         except Exception as e:
-            print(f"❌ 嵌入生成錯誤: {e}")
-            return [0.0] * Config.EMBEDDING_DIMENSION
+            print(f"[Error] Embedding generation failed: {e}")
+            return [0.0] * 1536  # text-embedding-3-small 的維度
     
     def add_to_knowledge_base(self, content: str, metadata: dict) -> bool:
         """將內容加入知識庫"""
@@ -169,8 +168,8 @@ class AICore:
             
             filtered_results = []
             for match in results['matches']:
-                # 降低閾值到 0.7，更實用的標準
-                if match['score'] >= 0.7:
+                # OpenAI embeddings 的相似度範圍較低，調整閾值
+                if match['score'] >= 0.3:
                     filtered_results.append({
                         'score': match['score'],
                         'content': match['metadata'].get('full_content', 

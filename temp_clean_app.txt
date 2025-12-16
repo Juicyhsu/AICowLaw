@@ -1,0 +1,2500 @@
+﻿"""
+LexBoost Bar 瘜???- 摰?蜓蝔?
+by AICowLaw瘜??"""
+
+import streamlit as st
+from datetime import datetime
+import time
+import random
+import asyncio
+import io
+import base64
+
+# ==================== ??蔭 ====================
+st.set_page_config(
+    page_title="LexBoost Bar 瘜???,
+    page_icon="??",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# ==================== ??芸??蔭 ====================
+# 皜?銝?閬??皜脫?
+if 'initialized' not in st.session_state:
+    st.session_state.initialized = True
+
+# ==================== 蝘?” ====================
+SUBJECTS = [
+    "瘞?", "瘞迄瘜?, "??", "?迄瘜?, "?脫?", "銵瘜?,
+    "?砍瘜?, "霅漱瘜?, "靽瘜?, "蟡冽?瘜?, "撘瑕瘜?,
+    "??瘜?, "?瘜?, "瘜??怎?", "瘜飛?望?",
+    "?箄瓷瘜?, "瘚瑕?瘚瑟?瘜?, "?冗瘜?, "鞎∠?瘜?, "?嗡?"
+]
+
+# ==================== ?芾? CSS ====================
+st.markdown("""
+<style>
+/* ?梯? Streamlit ?身 */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* ========== ?湧?? ========== */
+.stApp {
+    background: #f0f2f6;
+}
+
+[data-testid="stMainBlockContainer"] {
+    background: white;
+    border-radius: 20px;
+    padding: 2rem;
+    margin: 1rem;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+}
+
+[data-testid="stMainBlockContainer"] h1,
+[data-testid="stMainBlockContainer"] h2,
+[data-testid="stMainBlockContainer"] h3,
+[data-testid="stMainBlockContainer"] h4,
+[data-testid="stMainBlockContainer"] p,
+[data-testid="stMainBlockContainer"] span,
+[data-testid="stMainBlockContainer"] label,
+[data-testid="stMainBlockContainer"] div {
+    color: #1f2937 !important;
+}
+
+/* ========== ?湧?甈?========== */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #1f2937 0%, #111827 100%);
+}
+
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] div {
+    color: white !important;
+}
+
+[data-testid="stSidebar"] .stButton > button {
+    background: linear-gradient(135deg, #4b5563 0%, #374151 100%) !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    color: white !important;
+}
+
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+}
+
+[data-testid="stSidebar"] hr {
+    border-color: rgba(255,255,255,0.2) !important;
+}
+
+/* ========== ?? ========== */
+.stButton > button {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 12px !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 15px rgba(107, 114, 128, 0.4) !important;
+}
+
+.stButton > button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(107, 114, 128, 0.5) !important;
+}
+
+/* ========== 頛詨獢?========== */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea {
+    background: white !important;
+    color: #1f2937 !important;
+    border: 2px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    opacity: 1 !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus {
+    border-color: #6b7280 !important;
+}
+
+.stTextInput > label,
+.stTextArea > label,
+.stSelectbox > label {
+    color: #1f2937 !important;
+    font-weight: 600 !important;
+}
+
+.stSelectbox > div > div {
+    background: white !important;
+    color: #1f2937 !important;
+}
+
+/* ========== 蝯梯??∠? ========== */
+.stat-card {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    border-radius: 16px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(107, 114, 128, 0.3);
+}
+
+.stat-card .stat-label,
+.stat-card .stat-number {
+    color: white !important;
+}
+
+.stat-number {
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin: 0.5rem 0;
+}
+
+.stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+/* ========== 璅惜 ========== */
+.tag {
+    display: inline-block;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white !important;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    margin: 0.2rem;
+    font-weight: 500;
+}
+
+/* ========== 閮獢?========== */
+.success-box {
+    background: #d1fae5;
+    border-left: 4px solid #10b981;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1rem 0;
+    color: #065f46 !important;
+}
+
+.warning-box {
+    background: #fef3c7;
+    border-left: 4px solid #f59e0b;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1rem 0;
+    color: #92400e !important;
+}
+
+.info-box {
+    background: #dbeafe;
+    border-left: 4px solid #3b82f6;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    margin: 1rem 0;
+    color: #1e40af !important;
+}
+
+.card {
+    background: #f9fafb;
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+    border: 1px solid #e5e7eb;
+    color: #1f2937 !important;
+}
+
+/* ========== 撠店瘞?部 ========== */
+.chat-bubble-user {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white !important;
+    padding: 1rem 1.5rem;
+    border-radius: 20px 20px 5px 20px;
+    margin: 0.5rem 0;
+    max-width: 80%;
+    margin-left: auto;
+}
+
+.chat-bubble-ai {
+    background: #f3f4f6;
+    color: #1f2937 !important;
+    padding: 1rem 1.5rem;
+    border-radius: 20px 20px 20px 5px;
+    margin: 0.5rem 0;
+    max-width: 80%;
+}
+
+/* ========== ?箏?撠店獢捆??========== */
+.chat-container-fixed {
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+}
+
+/* ========== ?脣漲璇?========== */
+.progress-bar {
+    background: linear-gradient(90deg, #6b7280 0%, #4b5563 100%);
+    height: 100%;
+    border-radius: 10px;
+}
+
+/* ========== ?偏 ========== */
+.footer {
+    text-align: center;
+    padding: 2rem;
+    border-top: 1px solid #e5e7eb;
+    margin-top: 3rem;
+    color: #6b7280 !important;
+}
+
+.footer-brand {
+    font-size: 1.2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ========== Tab 璅?? ========== */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 1rem;
+    background: #f3f4f6;
+    border-radius: 12px;
+    padding: 0.5rem;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 600;
+    color: #1f2937 !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+    color: white !important;
+}
+
+.streamlit-expanderHeader {
+    background: #f9fafb !important;
+    color: #1f2937 !important;
+    font-weight: 600 !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #1f2937 !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ==================== ????Session State ====================
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = 'home'
+if 'chat_history' not in st.session_state:
+    st.session_state.chat_history = []
+if 'chat_mode' not in st.session_state:
+    st.session_state.chat_mode = 'reference'
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+if 'delete_confirm' not in st.session_state:
+    st.session_state.delete_confirm = {}
+if 'chat_input_clear' not in st.session_state:
+    st.session_state.chat_input_clear = 0
+if 'note_tab' not in st.session_state:
+    st.session_state.note_tab = 'text'  # ?身?箸?摮撓??if 'logging_in' not in st.session_state:
+    st.session_state.logging_in = False
+if 'show_loading' not in st.session_state:
+    st.session_state.show_loading = False
+if 'logged_out' not in st.session_state:
+    st.session_state.logged_out = False
+
+# 敺?query parameter ?Ｗ儔?餃??????渡???
+# 雿????餃嚗?閬???query_params = st.query_params
+if 'user' in query_params and not st.session_state.user_id and not st.session_state.logged_out:
+    st.session_state.user_id = query_params['user']
+
+# 敹恍?伐?銝＊蝷粹?皜⊿??ｇ??踹?畾蔣嚗?if st.session_state.logging_in:
+    st.session_state.logging_in = False
+    st.session_state.show_loading = False  # 皜頛?內
+    st.rerun()
+
+# 憒?撌脩?伐?銝＊蝷箇?仿???if st.session_state.user_id:
+    # 頝喲??餃?嚗?仿脣銝餌?撘?    pass
+
+# ==================== 雿輻???====================
+if not st.session_state.user_id:
+    st.markdown("""
+    <div style='text-align: center; padding: 3rem 0;'>
+        <h1 style='font-size: 2.5rem; color: #1f2937;'>?? LexBoost Bar 瘜???/h1>
+        <p style='color: #6b7280; font-size: 1.2rem; margin-bottom: 2rem;'>隢?蝙?刻蒂頛詨撖Ⅳ?餃</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    USER_PASSWORDS = {
+        "銋偌": "13134",
+        "雿輻?": "a",
+        "雿輻?": "b",
+        "雿輻?": "c",
+        "雿輻?": "d"
+    }
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        user_name = st.selectbox("? ?豢?雿???", list(USER_PASSWORDS.keys()))
+        password = st.text_input("?? 頛詨撖Ⅳ", type="password", placeholder="隢撓?亙?蝣?)
+        
+        with st.expander("? ?亦?撖Ⅳ?內"):
+            st.info("?身撖Ⅳ:\n- 銋偌: 13134\n- 雿輻?-D: a, b, c, d")
+        
+        # 憿舐內頛?內嚗???嚗?        if st.session_state.show_loading:
+            st.info("??甇?頛嚗?蝔?..")
+        
+        if st.button("?? ?餃蝟餌絞", use_container_width=True, type="primary"):
+            if password == USER_PASSWORDS.get(user_name):
+                # 雿輻 spinner 憿舐內頛閮
+                with st.spinner("??甇?頛嚗?蝔?.."):
+                    st.session_state.user_id = user_name
+                    st.session_state.logging_in = True
+                    st.session_state.show_loading = False
+                    st.session_state.logged_out = False  # 皜?餃??
+                    # 閮剖? query parameter 隞交?銋??餃???                    st.query_params['user'] = user_name
+                    time.sleep(0.3)  # ?撠辣?脰??冽??內
+                st.rerun()
+            else:
+                st.error("??撖Ⅳ?航炊嚗??頛詨")
+    
+    # 蝣箔??餃?蝯?嚗??敶?    st.stop()
+
+# ==================== ???頂蝯?====================
+def init_system():
+    """Silently initialize system without printing messages"""
+    import sys
+    from io import StringIO
+    
+    # ????撓??    old_stdout = sys.stdout
+    sys.stdout = StringIO()
+    
+    try:
+        from config import Config
+        Config.validate()
+        from ai_core import AICore
+        from data_manager import DataManager
+        result = AICore(), DataManager(), None
+    except Exception as e:
+        result = None, None, str(e)
+    finally:
+        # ?Ｗ儔頛詨
+        sys.stdout = old_stdout
+    
+    return result
+
+# ??敹怠?嚗????甈?if 'ai_core' not in st.session_state or 'data_manager' not in st.session_state:
+    ai_core, data_manager, init_error = init_system()
+    st.session_state.ai_core = ai_core
+    st.session_state.data_manager = data_manager
+    st.session_state.init_error = init_error
+else:
+    ai_core = st.session_state.ai_core
+    data_manager = st.session_state.data_manager
+    init_error = st.session_state.init_error
+
+# ==================== TTS ??頛??拙??====================
+async def generate_tts_audio(text: str, voice: str = "zh-CN-XiaoxiaoNeural", use_fallback: bool = True) -> bytes:
+    """雿輻 Edge TTS ??隤嚗仃???芸?????Google TTS"""
+    import re
+    
+    # 皜???嚗宏?斗???賢??游?憿??批捆
+    clean_text = text
+    
+    # 1. 蝘駁蝔?蝣澆?憛?? mermaid?ython 蝑?
+    clean_text = re.sub(r'```[\s\S]*?```', '', clean_text)
+    
+    # 2. 蝘駁 HTML 璅惜
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+    
+    # 3. 蝘駁 Markdown ??? [text](url)
+    clean_text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', clean_text)
+    
+    # 4. 蝘駁 Markdown ?澆?蝚西?
+    clean_text = re.sub(r'[#*`_~\[\]{}|\\]', '', clean_text)
+    
+    # 5. 蝘駁?寞?蝚西?嚗靽?銝剜???摮??箸璅?
+    clean_text = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s嚗?嚗?嚗?嚗-\.\,\!\?\:\;]', '', clean_text)
+    
+    # 6. 蝘駁憭?蝛箇??銵?    clean_text = re.sub(r'\s+', ' ', clean_text)
+    clean_text = clean_text.strip()
+    
+    # 7. 瑼Ｘ?臬?摰?    if not clean_text or len(clean_text) < 5:
+        raise ValueError(f"???批捆皜?敺蝛箸??嚗?憪摨佗?{len(text)}嚗???嚗len(clean_text)}嚗?賢??恍?憭畾撘?)
+    
+    # 8. ??瑕漲
+    if len(clean_text) > 2000:
+        clean_text = clean_text[:2000] + "..."
+    
+    # ?岫 Edge TTS嚗?岫璈嚗?    edge_tts_error = None
+    
+    # ????asyncio嚗Ⅱ靽?游?訾葉?賢??    import asyncio
+    
+    for attempt in range(2):  # ?岫 2 甈?        try:
+            import edge_tts
+            
+            # ??隤
+            communicate = edge_tts.Communicate(clean_text, voice)
+            audio_data = b""
+            chunk_count = 0
+            
+            # ?園??唾?鞈?
+            async def collect_audio():
+                nonlocal audio_data, chunk_count
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data += chunk["data"]
+                        chunk_count += 1
+            
+            # 閮剖? 30 蝘???            await asyncio.wait_for(collect_audio(), timeout=30.0)
+            
+            if audio_data and chunk_count > 0:
+                return audio_data
+            else:
+                edge_tts_error = f"?⊥???隤嚗??{chunk_count} ?閮?憛?"
+                
+        except asyncio.TimeoutError:
+            edge_tts_error = "Edge TTS ??????暹?嚗?0蝘?"
+            if attempt == 0:
+                await asyncio.sleep(1)  # 蝑? 1 蝘??岫
+                continue
+        except Exception as e:
+            edge_tts_error = str(e)
+            if attempt == 0 and "No audio was received" not in str(e):
+                await asyncio.sleep(1)  # 蝑? 1 蝘??岫
+                continue
+        
+        break  # 憒???"No audio was received" ?航炊嚗??岫
+    
+    # Edge TTS 憭望?嚗?閰虫蝙??Google TTS 雿??寞?
+    if use_fallback:
+        try:
+            from gtts import gTTS
+            import io
+            
+            # 雿輻 gTTS ??隤
+            tts = gTTS(text=clean_text, lang='zh-TW', slow=False)
+            
+            # 撠閮摮閮擃?            audio_fp = io.BytesIO()
+            tts.write_to_fp(audio_fp)
+            audio_fp.seek(0)
+            audio_data = audio_fp.read()
+            
+            if audio_data:
+                # ??雿輻 gTTS嚗??內雿輻??                import warnings
+                warnings.warn(f"Edge TTS 憭望?嚗edge_tts_error}嚗?撌脰??? Google TTS")
+                return audio_data
+                
+        except ImportError:
+            # gTTS ?芸?鋆?            raise ValueError(
+                f"Edge TTS ???⊥?雿輻嚗edge_tts_error}\n\n"
+                f"???Google TTS 銋摰??n"
+                f"隢銵誑銝?隞文?鋆?pip install gTTS\n\n"
+                f"??敺?閰?Edge TTS??
+            )
+        except Exception as gtts_error:
+            # gTTS 銋仃??
+            raise ValueError(
+                f"Edge TTS 憭望?嚗edge_tts_error}\n"
+                f"Google TTS 銋仃??{gtts_error}\n\n"
+                f"撱箄降嚗n"
+                f"1. 瑼Ｘ蝬脰楝???\n"
+                f"2. 瑼Ｘ?脩?身摰n"
+                f"3. 蝔??岫"
+            )
+    
+    # 銝蝙?典??冽獢??湔?梢
+    raise ValueError(
+        f"Edge TTS ???∪???{edge_tts_error}\n\n"
+        f"?航??嚗n"
+        f"1. 蝬脰楝?????\n"
+        f"2. Edge TTS ???急??⊥?雿輻\n"
+        f"3. ?脩??n\n"
+        f"撱箄降嚗?蝔??岫嚗?瑼Ｘ蝬脰楝????n\n"
+        f"皜?敺?摮?閬踝?{clean_text[:100]}..."
+    )
+
+def create_download_link(content: str, filename: str, file_format: str = "md") -> str:
+    """?萄遣銝????"""
+    if file_format == "md":
+        b64 = base64.b64encode(content.encode()).decode()
+        mime_type = "text/markdown"
+    elif file_format == "txt":
+        b64 = base64.b64encode(content.encode()).decode()
+        mime_type = "text/plain"
+    else:
+        return None
+    
+    return f'<a href="data:{mime_type};base64,{b64}" download="{filename}.{file_format}">? 銝? {file_format.upper()}</a>'
+
+# ==================== ????====================
+# ???歇摰???嚗?函洵銝甈∴?
+if 'completed_in_session' not in st.session_state:
+    st.session_state.completed_in_session = set()
+
+# ???歇銴?閮嚗?潮＊蝷綽?
+if 'reviewed_count' not in st.session_state:
+    st.session_state.reviewed_count = 0
+
+# ==================== ?湧?甈?====================
+with st.sidebar:
+    st.markdown(f"""
+    <div style='text-align: center; padding: 1rem;'>
+        <h1 style='color: white; font-size: 1.8rem; margin-bottom: 0;'>?? LexBoost Bar</h1>
+        <p style='color: #a5b4fc; font-size: 1rem;'>瘜???/p>
+        <p style='color: #10b981; font-size: 0.9rem; margin-top: 0.5rem;'>? {st.session_state.user_id}</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    if data_manager:
+        stats = data_manager.get_stats(st.session_state.user_id)
+        
+        # 閮?隞予撌脰?蝧?蝑??賊?嚗?鞈?摨急閰ｇ?
+        from datetime import datetime
+        today = datetime.now().date()
+        all_notes_sidebar = data_manager.get_all_notes(st.session_state.user_id)
+        
+        # 閮?隞予銴???蝑?嚗ast_reviewed ?臭?憭拍?嚗?        reviewed_today_sidebar = 0
+        for note in all_notes_sidebar:
+            if note.get('last_reviewed'):
+                try:
+                    last_reviewed_date = datetime.fromisoformat(note['last_reviewed']).date()
+                    if last_reviewed_date == today:
+                        reviewed_today_sidebar += 1
+                except:
+                    pass
+        
+        # ?閰Ｗ?銴?蝑?嚗?潸?蝞迤蝣箇??拚??賊?
+        all_due_notes_sidebar = data_manager.get_due_notes(st.session_state.user_id)
+        remaining_due_notes_sidebar = [n for n in all_due_notes_sidebar if n['id'] not in st.session_state.completed_in_session]
+        remaining_due_sidebar = len(remaining_due_notes_sidebar)
+
+        st.markdown(f"""
+        <div style='color: white; padding: 1rem;'>
+            <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
+                <span>?? 蝮賜?閮?/span>
+                <span style='font-weight: bold;'>{stats['total_notes']}</span>
+            </div>
+            <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
+                <span>??敺?蝧?/span>
+                <span style='font-weight: bold; color: #fbbf24;'>{remaining_due_sidebar}</span>
+            </div>
+            <div style='display: flex; justify-content: space-between; margin-bottom: 1rem;'>
+                <span>??隞撌脰?蝧?/span>
+                <span style='font-weight: bold; color: #34d399;'>{reviewed_today_sidebar}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    menu_items = [
+        ("??", "擐?", "home"),
+        ("??", "撱箇?蝑?", "note"),
+        ("?", "AI 鈭?摮貊?", "chat"),
+        ("??", "?箸??", "search"),
+        ("??", "銴??刻", "review"),
+        ("??", "甇瑕鞈?摨?, "database")
+    ]
+    
+    for icon, label, page in menu_items:
+        if st.button(f"{icon} {label}", key=f"nav_{page}", use_container_width=True):
+            st.session_state.current_page = page
+            st.rerun()
+    
+    st.markdown("---")
+    
+    # 銴?閮剖???
+    if st.button("?? 銴?閮剖?", use_container_width=True):
+        st.session_state.current_page = "review"
+        st.session_state.show_review_settings = True
+        st.query_params.update({"page": "review"})
+        st.rerun()
+    
+    
+    # ?餃??
+    if st.button("? ?餃", use_container_width=True):
+        st.session_state.user_id = None
+        st.session_state.current_page = "home"
+        st.session_state.logged_out = True  # 閮剖??餃??
+        st.query_params.clear()
+        st.rerun()
+    
+    st.markdown("---")
+    st.markdown("""
+    <div style='text-align: center; color: #6b7280; font-size: 0.8rem; padding: 1rem;'>
+        <p>?? AICowLaw瘜??/p>
+        <p>v1.0.0</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# ==================== ?航炊?? ====================
+if init_error:
+    st.error(f"?? 蝟餌絞???仃??{init_error}")
+    st.info("隢炎??.env 瑼?銝剔? API ?閮剖?")
+    st.stop()
+
+# ==================== ?撠甈?====================
+def render_top_nav():
+    st.markdown("""
+    <h1 style='text-align: center; color: #1f2937; margin-bottom: 0.5rem;'>?? LexBoost Bar 瘜???/h1>
+    <p style='text-align: center; color: #6b7280; margin-bottom: 1.5rem;'>by AICowLaw瘜??/p>
+    """, unsafe_allow_html=True)
+    
+    cols = st.columns(6)
+    pages = [("?? 擐?", "home"), ("?? 撱箇?蝑?", "note"), ("? AI 鈭?摮貊?", "chat"), 
+             ("?? ?箸??", "search"), ("?? 銴??刻", "review"), ("?? 甇瑕鞈?摨?, "database")]
+    
+    for col, (label, page) in zip(cols, pages):
+        with col:
+            if st.button(label, key=f"top_{page}", use_container_width=True):
+                st.session_state.current_page = page
+                st.rerun()
+
+# ==================== 擐? ====================
+def render_home():
+    render_top_nav()
+    
+    st.markdown("""
+    <div style='text-align: center; padding: 2rem 0;'>
+        <h1 style='font-size: 2.5rem; color: #4b5563;'>
+            ? 霈?AI ?雿?瘜??
+        </h1>
+        <p style='color: #6b7280; font-size: 1.2rem;'>蝘飛?飛蝧?? ?箸??蝧?? ?犖???/p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    stats = data_manager.get_stats(st.session_state.user_id)
+    
+    # ?閰Ｗ?銴?蝑?嚗?潸?蝞迤蝣箇??拚??賊?
+    all_due_notes = data_manager.get_due_notes(st.session_state.user_id)
+    remaining_due_notes = [n for n in all_due_notes if n['id'] not in st.session_state.completed_in_session]
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">?? 蝮賜?閮</div>
+            <div class="stat-number">{stats['total_notes']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        # 雿輻撖阡??蕪敺?蝑??賊?
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">??隞敺?蝧?/div>
+            <div class="stat-number">{len(remaining_due_notes)}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col3:
+        # 閮?隞予撌脰?蝧?蝑??賊?嚗?鞈?摨急閰ｇ?
+        from datetime import datetime
+        today = datetime.now().date()
+        all_notes = data_manager.get_all_notes(st.session_state.user_id)
+        
+        # 閮?隞予銴???蝑?嚗ast_reviewed ?臭?憭拍?嚗?        reviewed_today = 0
+        for note in all_notes:
+            if note.get('last_reviewed'):
+                try:
+                    # last_reviewed ?澆?: "2025-12-12T15:30:00"
+                    last_reviewed_date = datetime.fromisoformat(note['last_reviewed']).date()
+                    if last_reviewed_date == today:
+                        reviewed_today += 1
+                except:
+                    pass
+        
+        st.markdown(f"""
+        <div class="stat-card">
+            <div class="stat-label">??隞撌脰?蝧?/div>
+            <div class="stat-number">{reviewed_today}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    st.markdown("### ?? 隞銴??刻")
+    
+    # 雿輻撌脩??亥岷??瞈曄?蝑??”
+    if all_due_notes:
+        # remaining_due_notes 撌脩??其??ａ?瞈曉末鈭?        if remaining_due_notes:
+            st.markdown(f'<div class="warning-box">??雿? {len(remaining_due_notes)} ??閮?閬?蝧?</div>', unsafe_allow_html=True)
+            
+            for i, note in enumerate(remaining_due_notes):
+                with st.expander(f"?? {note.get('title', '?⊥?憿?)} - {note.get('category', '?芸?憿?)}", expanded=False):
+                    st.markdown(f"**銴?甈⊥**嚗note.get('review_count', 0)} 甈?)
+                    st.markdown(f"**??漲**嚗??{note.get('difficulty', '銝剔?')}")
+                    
+                    st.markdown("---")
+                    st.markdown("**?批捆嚗?*")
+                    st.markdown(note.get('content', '?∪摰?))
+                    
+                    st.markdown("---")
+                    
+                    # 閮剖??身?潘??寞?銝活閮蝔漲
+                    last_memory_map = {
+                        "摰銝?敺?: 0, "???啗情": 1, "憭扯閮?": 2, "敺???: 3, "摰蝎暸?: 4,
+                        "?活": 0, "?圈": 1, "?臬末": 2, "摰寞?": 3, "蝎暸?: 4, "": 0
+                    }
+                    default_index = last_memory_map.get(note.get('last_memory_level', ''), 0)
+                    
+                    memory_level = st.radio(
+                        "?豢?閮蝔漲",
+                        ["??摰銝?敺?, "?? ???啗情", "?? 憭扯閮?", "??敺???, "?? 摰蝎暸?],
+                        horizontal=True,
+                        index=default_index,
+                        key=f"home_review_memory_{note['id']}"
+                    )
+                    
+                    # ?斗?舐洵銝甈∟?蝧??臬?甈∟?蝧?                    review_count = note.get('review_count', 0)
+                    
+                    if review_count == 0:
+                        # 蝚砌?甈∟?蝧??芷＊蝷箝Ⅱ隤???                        if st.button("??蝣箄?", key=f"home_review_btn_{note['id']}", type="primary", use_container_width=True):
+                            level_map = {
+                                "??摰銝?敺?: "摰銝?敺?, "?? ???啗情": "???啗情",
+                                "?? 憭扯閮?": "憭扯閮?", "??敺???: "敺???, "?? 摰蝎暸?: "摰蝎暸?
+                            }
+                            data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                            st.success("??撌脩Ⅱ隤?")
+                            st.rerun()
+                    else:
+                        # 憭活銴?嚗＊蝷箝?啜??雁????                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("???湔", key=f"home_review_btn_{note['id']}", type="primary", use_container_width=True):
+                                level_map = {
+                                    "??摰銝?敺?: "摰銝?敺?, "?? ???啗情": "???啗情",
+                                    "?? 憭扯閮?": "憭扯閮?", "??敺???: "敺???, "?? 摰蝎暸?: "摰蝎暸?
+                                }
+                                data_manager.update_review_schedule(note['id'], level_map[memory_level], st.session_state.user_id)
+                                st.success("??撌脫?堆?")
+                                st.rerun()
+                        
+                        with col2:
+                            if st.button("?哨? 蝬剜?", key=f"home_maintain_btn_{note['id']}", type="secondary", use_container_width=True):
+                                # 蝬剜???嚗??湔閮蝔漲嚗?璅??箏歇銴?
+                                # ?望瘝??湔鞈?摨恬???蝑?銝活???箇
+                                # ?隞交???閬溶? completed_in_session
+                                st.session_state.completed_in_session.add(note['id'])
+                                st.success("??撌脩雁??")
+                                st.rerun()
+        else:
+            st.markdown('<div class="success-box">?? 憭芣?鈭?隞銴??賢歇摰?嚗?/div>', unsafe_allow_html=True)
+            # 蝘駁瘞????踹?撟脫
+    else:
+        st.markdown('<div class="success-box">?? ?桀?瘝?敺?蝧?蝑?嚗匱蝥???</div>', unsafe_allow_html=True)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("### ??敹恍?憪?)
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("?? 撱箇??啁?閮?, use_container_width=True, type="primary"):
+            st.session_state.current_page = 'note'
+            st.rerun()
+    with col2:
+        if st.button("? ?? AI 撠店", use_container_width=True):
+            st.session_state.current_page = 'chat'
+            st.rerun()
+    with col3:
+        if st.button("?? ??隞銴?", use_container_width=True):
+            st.session_state.current_page = 'review'
+            st.rerun()
+
+# ==================== AI 蝑??? ====================
+def render_note():
+    render_top_nav()
+    
+    # 璅???蝛箸???    col_title, col_clear = st.columns([4, 1])
+    with col_title:
+        st.markdown("## ?? AI 蝯?蝑?撱箇?")
+    with col_clear:
+        if st.button("??儭?皜征??摰?, use_container_width=True, type="secondary"):
+            # 皜征???? session state
+            keys_to_clear = ['generated_notes', 'note_metadata', 'pdf_content', 'mindmap_code', 
+                           'system_diagram', 'voice_transcription', 'voice_notes', 'ai_notes',
+                           'ocr_result', 'smoothed_ocr']
+            for key in keys_to_clear:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.success("??撌脫?蝛箸??摰對?")
+            st.rerun()
+    
+    st.markdown('<div class="info-box">?? 頛詨瘜???閮摰對?AI ????蝯???閮?/div>', unsafe_allow_html=True)
+    
+    # 璅惜?豢??剁?雿輻??嚗?    st.markdown("### ?? ?豢?頛詨?孵?")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("?? ??/?辣頛詨", use_container_width=True, 
+                     type="primary" if st.session_state.note_tab == 'text' else "secondary",
+                     key="tab_btn_text"):
+            st.session_state.note_tab = 'text'
+    
+    with col2:
+        if st.button("? ??/PDF 颲刻?", use_container_width=True,
+                     type="primary" if st.session_state.note_tab == 'ocr' else "secondary",
+                     key="tab_btn_ocr"):
+            st.session_state.note_tab = 'ocr'
+    
+    with col3:
+        if st.button("??儭?隤頛詨", use_container_width=True,
+                     type="primary" if st.session_state.note_tab == 'voice' else "secondary",
+                     key="tab_btn_voice"):
+            st.session_state.note_tab = 'voice'
+    
+    st.markdown("---")
+    
+    # ?寞??豢?憿舐內撠??批捆
+    if st.session_state.note_tab == 'text':
+        # PDF 銝?賊?
+        st.markdown("#### ?? 銝 PDF ?辣嚗?賂?")
+        pdf_file = st.file_uploader("銝 PDF", type=['pdf'], key="pdf_upload")
+        
+        if pdf_file:
+            if st.button("?? 霈??PDF ?批捆", use_container_width=True):
+                try:
+                    import fitz  # PyMuPDF
+                    pdf_doc = fitz.open(stream=pdf_file.read(), filetype="pdf")
+                    pdf_text = ""
+                    for page in pdf_doc:
+                        pdf_text += page.get_text()
+                    
+                    st.session_state.pdf_content = pdf_text
+                    st.success(f"??撌脰???{pdf_doc.page_count} ?摰?)
+                except Exception as e:
+                    st.error(f"??霈?仃??{e}\n隢?摰?嚗ip install PyMuPDF")
+        
+        st.markdown("---")
+        
+        col1, col2 = st.columns([2, 1])
+        
+        with col1:
+            title = st.text_input("?? 蝑?璅?", placeholder="靘?嚗?瘜洵184璇?- 靘菜?銵")
+        
+        with col2:
+            category = st.selectbox("?? 蝘??", SUBJECTS)
+        
+        # 蝑??批捆
+        st.markdown("### ?? 蝑??批捆")
+        content = st.text_area(
+            "頛詨雿?蝑??批捆",
+            height=300,
+            value=st.session_state.get('pdf_content', ''),
+            placeholder="?冽迨頛詨瘜?蝑??批捆...",
+            key="main_content_input"
+        )
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            note_type = st.selectbox("? 蝑?憿?", ["???渡?", "????", "獢?閫??"])
+        with col2:
+            difficulty = st.selectbox(
+                "?? ?批捆??漲",
+                ["璆萇陛??, "蝪∪", "銝剔?", "?圈", "璆萄??],
+                index=2,  # ?身?葉蝑?                help="蝑??批捆?祈澈???摨佗??蔣?輯?蝧???
+            )
+        with col3:
+            tags = st.text_input("?儭?璅惜", placeholder="?券???嚗?憒?靘菜?,??")
+        
+        st.info("""?? **???身**嚗?- ?啣遣蝡?閮??券?憭拚脰?蝚砌?甈∟?蝧?- 瘥活銴???臭誑?隤踵閮蝔漲嚗頂蝯望??寞?雿??豢?摰?銝活銴?????- 憒???銴?嚗??啜??銴??刻???Ｕ?"")
+        
+        # AI ??憸冽?豢?
+        st.markdown("### ? AI 蝑?憸冽閮剖?")
+        
+        # 撠 Prompt 璅⊥?◢?澆摮?        from prompt_templates import get_all_style_options, get_style_instruction, PROFESSIONAL_PROMPTS, ESSENTIAL_PROMPTS
+        import style_storage
+        
+        # 敺?JSON 頛雿輻?閮◢??        user_styles = style_storage.load_user_styles(st.session_state.user_id)
+        
+        # 撱箇?憸冽?賊??”嚗葆??蝺?
+        style_options = []
+        
+        # 1. 撠平?◢??        style_options.extend(list(PROFESSIONAL_PROMPTS.keys()))
+        
+        # 2. 蝎暸?◢??        style_options.extend(list(ESSENTIAL_PROMPTS.keys()))
+        
+        # 3. ??蝺?+ 雿輻?◢??        style_options.append("????? ??憸冽 ?????")
+        if user_styles:
+            for style_name in user_styles.keys():
+                style_options.append(f"潃?{style_name}")
+        
+        # 4. ?芾?憸冽?賊?
+        style_options.append("?? ?芾?憸冽")
+        
+        # 撱箇?憸冽?膩摮嚗?潮?閬踝?
+        style_presets = {}
+        style_presets.update(PROFESSIONAL_PROMPTS)
+        style_presets.update(ESSENTIAL_PROMPTS)
+        for name, desc in user_styles.items():
+            style_presets[f"潃?{name}"] = desc
+        
+        # 憸冽?豢?隞
+        col_select, col_manage = st.columns([3, 1])
+        
+        with col_select:
+            selected_style = st.selectbox("?豢?蝑?憸冽", style_options, index=0)
+        
+        with col_manage:
+            st.write("")  # 撠?
+            # ?寞??Ｘ??＊蝷箔???????
+            is_open = st.session_state.get('show_style_manager', False)
+            button_text = "?? ?啣?/蝞∠?憸冽嚗韏瘀?" if is_open else "?? ?啣?/蝞∠?憸冽"
+            if st.button(button_text, use_container_width=True, key="toggle_manage_btn"):
+                st.session_state.show_style_manager = not is_open
+                st.rerun()
+        
+        # 憸冽蝞∠??Ｘ
+        if st.session_state.get('show_style_manager', False):
+            with st.expander("??儭????芾?憸冽", expanded=True):
+                st.markdown("**???啣??芾?憸冽**")
+                with st.form("quick_save_style", clear_on_submit=True):
+                    new_style_name = st.text_input("憸冽?迂", placeholder="靘?嚗岫銵??)
+                    new_style_desc = st.text_area("憸冽?膩", height=80, 
+                                                  placeholder="靘?嚗璇?撘??瘥?暺?頞?30摮???閮??見")
+                    
+                    if st.form_submit_button("???脣?", use_container_width=True):
+                        if new_style_name and new_style_desc:
+                            if new_style_name in user_styles:
+                                st.error(f"??憸冽?new_style_name}?歇摮")
+                            else:
+                                if style_storage.save_user_style(
+                                    st.session_state.user_id,
+                                    new_style_name,
+                                    new_style_desc
+                                ):
+                                    st.success(f"??撌脣摮new_style_name}??)
+                                    time.sleep(0.5)
+                                    st.rerun()
+                                else:
+                                    st.error("???脣?憭望?")
+                        else:
+                            st.warning("?? 隢‵撖怠??渲?閮?)
+                
+                st.markdown("---")
+                st.markdown("**?? 撌脣摮?憸冽**")
+                
+                if not user_styles:
+                    st.info("? 撠?芾?憸冽")
+                else:
+                    for idx, (style_name, style_desc) in enumerate(user_styles.items()):
+                        col1, col2 = st.columns([4, 1])
+                        with col1:
+                            st.text(f"潃?{style_name}")
+                            st.caption(f"{style_desc[:50]}..." if len(style_desc) > 50 else style_desc)
+                        with col2:
+                            if st.button("??儭?, key=f"del_style_{idx}", help="?芷甇日◢??):
+                                if style_storage.delete_user_style(st.session_state.user_id, style_name):
+                                    st.success("??撌脣??)
+                                    time.sleep(0.3)
+                                    st.rerun()
+                        st.markdown("---")
+        
+        
+        # ??憸冽?內
+        if selected_style == "????? ??憸冽 ?????":
+            # 憒??詨??蝺?憿舐內?內
+            st.info("?? 隢?銝?豢?銝?◢?潘?????儭?蝞∠?憸冽?憓閮◢??)
+            style_instruction = ""
+        elif selected_style == "?? ?芾?憸冽":
+            custom_style = st.text_area("隢?餈唬??唾???閮◢??, height=100, 
+                placeholder="靘?嚗璇?撘??瘥?暺?頞?30摮???閮??見",
+                key="custom_style_input")
+            style_instruction = custom_style if custom_style else ""
+        elif selected_style.startswith("潃?"):
+            # 雿輻?閮◢??            actual_name = selected_style[2:]  # 蝘駁 "潃?" ?韌
+            style_instruction = user_styles.get(actual_name, "")
+            # 憿舐內憸冽隤芣?
+            with st.expander("?? ?亦?甇日◢?潸牧??):
+                st.info(style_instruction[:200] + "..." if len(style_instruction) > 200 else style_instruction)
+        else:
+            # ?身憸冽
+            style_instruction = style_presets.get(selected_style, "")
+            # 憿舐內憸冽隤芣?
+            with st.expander("?? ?亦?甇日◢?潸牧??):
+                preview_text = style_presets.get(selected_style, "")
+                if len(preview_text) > 200:
+                    st.info(preview_text[:200] + "...")
+                else:
+                    st.info(preview_text)
+        
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # AI ??????蝛箸???        col_gen, col_clear = st.columns([3, 1])
+        
+        with col_gen:
+            if st.button("?? AI ??蝑?", use_container_width=True, type="primary", key="generate_btn"):
+                if content:
+                    with st.spinner("? AI 甇??渡?蝑?..."):
+                        ai_notes = ai_core.generate_ai_notes(content, note_type, style_instruction)
+                        st.session_state.generated_notes = ai_notes
+                        st.session_state.note_metadata = {
+                            'title': title or f"{category} - {note_type}",
+                            'category': category,
+                            'tags': [t.strip() for t in tags.split(",")] if tags else [],
+                            'difficulty': difficulty
+                        }
+                        st.rerun()
+                else:
+                    st.warning("?? 隢撓?亙摰?)
+        
+        with col_clear:
+            if st.button("??儭?皜征??摰?, use_container_width=True, key="clear_top"):
+                # 皜征???? session state
+                if 'generated_notes' in st.session_state:
+                    del st.session_state.generated_notes
+                if 'note_metadata' in st.session_state:
+                    del st.session_state.note_metadata
+                if 'pdf_content' in st.session_state:
+                    del st.session_state.pdf_content
+                if 'mindmap_code' in st.session_state:
+                    del st.session_state.mindmap_code
+                if 'system_diagram' in st.session_state:
+                    del st.session_state.system_diagram
+                st.success("??撌脫?蝛箸??摰對?")
+                time.sleep(0.5)
+                st.rerun()
+        
+        # 憿舐內??蝯?
+        if 'generated_notes' in st.session_state and st.session_state.generated_notes:
+            st.markdown('<div class="success-box">??蝑???摰?嚗?/div>', unsafe_allow_html=True)
+            
+            st.markdown("### ?? ??蝯?")
+            
+            # ?甈?蝺刻摩???閬賢?
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.markdown("**蝺刻摩蝑??批捆**")
+                edited_notes = st.text_area(
+                    "蝺刻摩?",
+                    value=st.session_state.generated_notes,
+                    height=600,
+                    key="edit_notes_area",
+                    label_visibility="collapsed"
+                )
+                st.session_state.generated_notes = edited_notes
+            
+            with col2:
+                st.markdown("**?汗??**")
+                # 雿輻 markdown 皜脫??汗嚗溶?摰?摨血捆??                st.markdown(f'<div style="height: 600px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem;">{edited_notes}</div>', unsafe_allow_html=True)
+            
+            st.markdown("### ? ?脣???頛?)
+            
+            # 皜祈岫璅∪???
+            test_mode = st.checkbox(
+                "?妒 皜祈岫璅∪?嚗??唾?蝧?", 
+                value=False,
+                help="??敺?蝑????喳?曉銴??”嚗葫閰衣嚗迤撘蝙?刻?????
+            )
+            if test_mode:
+                st.warning("?? 皜祈岫璅∪?撌脤???蝑?撠??喳銴?")
+            
+            # ?脣??賊?
+            col1, col2 = st.columns(2)
+            with col1:
+                save_to_db = st.checkbox("???脣??啗??澈嚗irtable ?脩垢?郊嚗?, value=True)
+            with col2:
+                add_to_kb = st.checkbox("????亥?摨恬??舀 AI ?箸??嚗?, value=True)
+            
+            # ??? - 隤踵??3 甈??脣???頛撘?銝??????啁???            col1, col2, col3 = st.columns([2, 3, 2])
+            
+            with col1:
+                if st.button("? ?脣?蝑?", use_container_width=True, type="primary"):
+                    meta = st.session_state.note_metadata
+                    
+                    if save_to_db:
+                        data_manager.save_note(
+                            user_id=st.session_state.user_id,
+                            title=meta['title'],
+                            content=st.session_state.generated_notes,
+                            category=meta['category'],
+                            tags=meta['tags'],
+                            difficulty=meta['difficulty'],
+                            test_mode=test_mode  # ?喲?皜祈岫璅∪?
+                        )
+                    
+                    if add_to_kb:
+                        ai_core.add_to_knowledge_base(
+                            content=st.session_state.generated_notes,
+                            metadata={
+                                'type': 'note',
+                                'title': meta['title'],
+                                'category': meta['category'],
+                                'tags': meta['tags'],
+                                'difficulty': meta['difficulty'],
+                                'user_id': st.session_state.user_id,
+                                'note_id': 'temp_' + str(int(time.time() * 1000))  # ?急? ID嚗祕??閰脣?脣?敺蝙?函?撖?note_id
+                            }
+                        )
+                    
+                    st.success("???脣???嚗?)
+                    # 銝??芸?皜征嚗?雿輻?撌望捱摰?            
+            with col2:
+                # 銝??澆??豢????蒂??                col2_1, col2_2 = st.columns([1, 2])
+                with col2_1:
+                    download_format = st.selectbox("?澆?", ["Markdown", "Word", "PDF"], label_visibility="collapsed")
+                with col2_2:
+                    if download_format == "Markdown":
+                        st.download_button(
+                            "漎? 銝?蝑?",
+                            st.session_state.generated_notes,
+                            f"{st.session_state.note_metadata['title']}.md",
+                            "text/markdown",
+                            use_container_width=True
+                        )
+                    elif download_format == "Word":
+                        try:
+                            from docx import Document
+                            from io import BytesIO
+                            
+                            doc = Document()
+                            doc.add_heading(st.session_state.note_metadata['title'], 0)
+                            for line in st.session_state.generated_notes.split('\n'):
+                                if line.strip():
+                                    doc.add_paragraph(line)
+                            
+                            buffer = BytesIO()
+                            doc.save(buffer)
+                            buffer.seek(0)
+                            
+                            st.download_button(
+                                "漎? 銝?蝑?",
+                                buffer,
+                                f"{st.session_state.note_metadata['title']}.docx",
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                use_container_width=True
+                            )
+                        except ImportError:
+                            st.error("隢?摰? python-docx嚗ip install python-docx")
+                    elif download_format == "PDF":
+                        try:
+                            from reportlab.lib.pagesizes import A4
+                            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+                            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+                            from reportlab.pdfbase import pdfmetrics
+                            from reportlab.pdfbase.ttfonts import TTFont
+                            from io import BytesIO
+                            
+                            # 閮餃?銝剜?摮?
+                            try:
+                                pdfmetrics.registerFont(TTFont('NotoSansTC', 'NotoSansTC-Regular.ttf'))
+                                font_name = 'NotoSansTC'
+                            except:
+                                font_name = 'Helvetica'
+                            
+                            buffer = BytesIO()
+                            doc = SimpleDocTemplate(buffer, pagesize=A4)
+                            story = []
+                            
+                            styles = getSampleStyleSheet()
+                            title_style = ParagraphStyle(
+                                'CustomTitle',
+                                parent=styles['Heading1'],
+                                fontName=font_name,
+                                fontSize=24,
+                                spaceAfter=30,
+                            )
+                            body_style = ParagraphStyle(
+                                'CustomBody',
+                                parent=styles['BodyText'],
+                                fontName=font_name,
+                                fontSize=12,
+                                leading=20,
+                            )
+                            
+                            # 璅?
+                            story.append(Paragraph(st.session_state.note_metadata['title'], title_style))
+                            story.append(Spacer(1, 12))
+                            
+                            # ?批捆
+                            for line in st.session_state.generated_notes.split('\n'):
+                                if line.strip():
+                                    story.append(Paragraph(line.replace('<', '&lt;').replace('>', '&gt;'), body_style))
+                                    story.append(Spacer(1, 6))
+                            
+                            doc.build(story)
+                            buffer.seek(0)
+                            
+                            st.download_button(
+                                "漎? 銝?蝑?",
+                                buffer,
+                                f"{st.session_state.note_metadata['title']}.pdf",
+                                "application/pdf",
+                                use_container_width=True
+                            )
+                        except ImportError:
+                            st.error("隢?摰? reportlab嚗ip install reportlab")
+            
+            
+            with col3:
+                if st.button("?? ???", use_container_width=True):
+                    # 靽? metadata嚗皜征????閮?                    if 'generated_notes' in st.session_state:
+                        del st.session_state.generated_notes
+                    st.rerun()
+            
+            # 敹????            st.markdown("---")
+            st.markdown("### ?儭?閬死?極??)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("?儭???敹??Mermaid嚗?, use_container_width=True):
+                    with st.spinner("? ??銝?.."):
+                        mindmap_code = ai_core.generate_mind_map(st.session_state.generated_notes)
+                        st.session_state.mindmap_code = mindmap_code
+                        st.rerun()
+            
+            with col2:
+                if st.button("?? ??瘜?擃頂??, use_container_width=True):
+                    with st.spinner("? ??銝?.."):
+                        system_diagram = ai_core.generate_legal_system_diagram(st.session_state.generated_notes)
+                        st.session_state.system_diagram = system_diagram
+                        st.rerun()
+            
+            # 憿舐內????閮?            if 'ai_notes' in st.session_state:
+                st.markdown("### ??AI ????閮?)
+                st.markdown(st.session_state.ai_notes)
+                
+                # ?脣???
+                if st.button("? ?脣?蝑?", use_container_width=True, type="primary", key="save_generated"):
+                    data_manager.save_note(
+                        user_id=st.session_state.user_id,
+                        title=f"AI蝑? - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        content=st.session_state.ai_notes,
+                        category=category,
+                        tags=[t.strip() for t in tags.split(",")] if tags else [],
+                        difficulty=difficulty
+                    )
+                    st.success("??蝑?撌脣摮?")
+                    del st.session_state.ai_notes
+                    st.rerun()
+            
+            # 憿舐內敹??            if 'mindmap_code' in st.session_state:
+                st.markdown("**敹??閬?*")
+                
+                mermaid_html = f"""
+                <div class="mermaid">
+                {st.session_state.mindmap_code}
+                </div>
+                <script type="module">
+                  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+                  mermaid.initialize({{ startOnLoad: true }});
+                </script>
+                """
+                st.components.v1.html(mermaid_html, height=600, scrolling=True)
+                
+                # 銝??摮???                col_download, col_save, col_code = st.columns(3)
+                
+                with col_download:
+                    # 雿輻 Mermaid Ink API 頧?????                    try:
+                        import requests
+                        import urllib.parse
+                        
+                        # 蝺函Ⅳ Mermaid 蝔?蝣?                        encoded = base64.urlsafe_b64encode(st.session_state.mindmap_code.encode('utf-8')).decode('ascii')
+                        
+                        # 雿輻 Mermaid Ink API
+                        img_url = f"https://mermaid.ink/img/{encoded}"
+                        
+                        # 銝???
+                        response = requests.get(img_url, timeout=10)
+                        if response.status_code == 200:
+                            st.download_button(
+                                label="? 銝?敹??(PNG)",
+                                data=response.content,
+                                file_name=f"{st.session_state.note_metadata.get('title', '敹??)}_mindmap.png",
+                                mime="image/png",
+                                use_container_width=True,
+                                key="download_mindmap_png"
+                            )
+                        else:
+                            # API 憭望?嚗?靘?撘Ⅳ銝?
+                            st.download_button(
+                                label="? 銝?蝔?蝣?,
+                                data=st.session_state.mindmap_code,
+                                file_name=f"{st.session_state.note_metadata.get('title', '敹??)}_mindmap.mmd",
+                                mime="text/plain",
+                                use_container_width=True,
+                                key="download_mindmap_code"
+                            )
+                    except Exception as e:
+                        # ?潛??航炊嚗?靘?撘Ⅳ銝?
+                        st.download_button(
+                            label="? 銝?蝔?蝣?,
+                            data=st.session_state.mindmap_code,
+                            file_name=f"{st.session_state.note_metadata.get('title', '敹??)}_mindmap.mmd",
+                            mime="text/plain",
+                            use_container_width=True,
+                            key="download_mindmap_fallback"
+                        )
+                
+                with col_save:
+                    if st.button("? ?脣??啁?閮澈", use_container_width=True, key="save_mindmap"):
+                        with st.spinner("? 甇??脣?..."):
+                            try:
+                                import requests
+                                
+                                # 頧?????                                encoded = base64.urlsafe_b64encode(st.session_state.mindmap_code.encode('utf-8')).decode('ascii')
+                                img_url = f"https://mermaid.ink/img/{encoded}"
+                                response = requests.get(img_url, timeout=10)
+                                
+                                if response.status_code == 200:
+                                    # ??????嚗??? Base64
+                                    img_base64 = base64.b64encode(response.content).decode('ascii')
+                                    
+                                    # 撱箇??????Markdown ?批捆
+                                    meta = st.session_state.note_metadata
+                                    content = f"""# {meta.get('title', '蝑?')} - 敹??
+![敹?(data:image/png;base64,{img_base64})
+
+---
+
+## Mermaid 蝔?蝣?
+```mermaid
+{st.session_state.mindmap_code}
+```
+"""
+                                    
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"?儭?{meta.get('title', '蝑?')} - 敹??,
+                                        content=content,
+                                        category=meta.get('category', '?嗡?'),
+                                        tags=meta.get('tags', []) + ['敹??],
+                                        difficulty=meta.get('difficulty', '銝剔?')
+                                    )
+                                    st.success("??敹???怠???撌脣摮蝑?摨恬?")
+                                else:
+                                    # API 憭望?嚗?脣?蝔?蝣?                                    meta = st.session_state.note_metadata
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"?儭?{meta.get('title', '蝑?')} - 敹??,
+                                        content=f"```mermaid\n{st.session_state.mindmap_code}\n```",
+                                        category=meta.get('category', '?嗡?'),
+                                        tags=meta.get('tags', []) + ['敹??],
+                                        difficulty=meta.get('difficulty', '銝剔?')
+                                    )
+                                    st.warning("?? ??頧?憭望?嚗歇?脣?蝔?蝣?)
+                            except Exception as e:
+                                # ?潛??航炊嚗?脣?蝔?蝣?                                meta = st.session_state.note_metadata
+                                data_manager.save_note(
+                                    user_id=st.session_state.user_id,
+                                    title=f"?儭?{meta.get('title', '蝑?')} - 敹??,
+                                    content=f"```mermaid\n{st.session_state.mindmap_code}\n```",
+                                    category=meta.get('category', '?嗡?'),
+                                    tags=meta.get('tags', []) + ['敹??],
+                                    difficulty=meta.get('difficulty', '銝剔?')
+                                )
+                                st.warning(f"?? ?脣?????隤歹?撌脣摮?撘Ⅳ")
+                
+                with col_code:
+                    # ??蝔?蝣潔?頛??                    st.download_button(
+                        label="?? 銝?蝔?蝣?,
+                        data=st.session_state.mindmap_code,
+                        file_name=f"{st.session_state.note_metadata.get('title', '敹??)}_mindmap.mmd",
+                        mime="text/plain",
+                        use_container_width=True,
+                        key="download_mindmap_code_extra"
+                    )
+                
+                with st.expander("?? ?亦? Mermaid 蝔?蝣?):
+                    st.code(st.session_state.mindmap_code, language="mermaid")
+            
+            # 憿舐內擃頂??            if 'system_diagram' in st.session_state:
+                st.markdown("**瘜?擃頂??閬?*")
+                
+                diagram_html = f"""
+                <div class="mermaid">
+                {st.session_state.system_diagram}
+                </div>
+                <script type="module">
+                  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+                  mermaid.initialize({{ startOnLoad: true }});
+                </script>
+                """
+                st.components.v1.html(diagram_html, height=600, scrolling=True)
+                
+                # 銝??摮???                col_download, col_save, col_code = st.columns(3)
+                
+                with col_download:
+                    # 雿輻 Mermaid Ink API 頧?????                    try:
+                        import requests
+                        import urllib.parse
+                        
+                        # 蝺函Ⅳ Mermaid 蝔?蝣?                        encoded = base64.urlsafe_b64encode(st.session_state.system_diagram.encode('utf-8')).decode('ascii')
+                        
+                        # 雿輻 Mermaid Ink API
+                        img_url = f"https://mermaid.ink/img/{encoded}"
+                        
+                        # 銝???
+                        response = requests.get(img_url, timeout=10)
+                        if response.status_code == 200:
+                            st.download_button(
+                                label="? 銝?擃頂??(PNG)",
+                                data=response.content,
+                                file_name=f"{st.session_state.note_metadata.get('title', '瘜?擃頂??)}_system.png",
+                                mime="image/png",
+                                use_container_width=True,
+                                key="download_system_png"
+                            )
+                        else:
+                            # API 憭望?嚗?靘?撘Ⅳ銝?
+                            st.download_button(
+                                label="? 銝?蝔?蝣?,
+                                data=st.session_state.system_diagram,
+                                file_name=f"{st.session_state.note_metadata.get('title', '瘜?擃頂??)}_system.mmd",
+                                mime="text/plain",
+                                use_container_width=True,
+                                key="download_system_code"
+                            )
+                    except Exception as e:
+                        # ?潛??航炊嚗?靘?撘Ⅳ銝?
+                        st.download_button(
+                            label="? 銝?蝔?蝣?,
+                            data=st.session_state.system_diagram,
+                            file_name=f"{st.session_state.note_metadata.get('title', '瘜?擃頂??)}_system.mmd",
+                            mime="text/plain",
+                            use_container_width=True,
+                            key="download_system_fallback"
+                        )
+                
+                with col_save:
+                    if st.button("? ?脣??啁?閮澈", use_container_width=True, key="save_system"):
+                        with st.spinner("? 甇??脣?..."):
+                            try:
+                                import requests
+                                
+                                # 頧?????                                encoded = base64.urlsafe_b64encode(st.session_state.system_diagram.encode('utf-8')).decode('ascii')
+                                img_url = f"https://mermaid.ink/img/{encoded}"
+                                response = requests.get(img_url, timeout=10)
+                                
+                                if response.status_code == 200:
+                                    # ??????嚗??? Base64
+                                    img_base64 = base64.b64encode(response.content).decode('ascii')
+                                    
+                                    # 撱箇??????Markdown ?批捆
+                                    meta = st.session_state.note_metadata
+                                    content = f"""# {meta.get('title', '蝑?')} - 瘜?擃頂??
+![瘜?擃頂?(data:image/png;base64,{img_base64})
+
+---
+
+## Mermaid 蝔?蝣?
+```mermaid
+{st.session_state.system_diagram}
+```
+"""
+                                    
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"?? {meta.get('title', '蝑?')} - 瘜?擃頂??,
+                                        content=content,
+                                        category=meta.get('category', '?嗡?'),
+                                        tags=meta.get('tags', []) + ['瘜?擃頂??],
+                                        difficulty=meta.get('difficulty', '銝剔?')
+                                    )
+                                    st.success("??瘜?擃頂???怠???撌脣摮蝑?摨恬?")
+                                else:
+                                    # API 憭望?嚗?脣?蝔?蝣?                                    meta = st.session_state.note_metadata
+                                    data_manager.save_note(
+                                        user_id=st.session_state.user_id,
+                                        title=f"?? {meta.get('title', '蝑?')} - 瘜?擃頂??,
+                                        content=f"```mermaid\n{st.session_state.system_diagram}\n```",
+                                        category=meta.get('category', '?嗡?'),
+                                        tags=meta.get('tags', []) + ['瘜?擃頂??],
+                                        difficulty=meta.get('difficulty', '銝剔?')
+                                    )
+                                    st.warning("?? ??頧?憭望?嚗歇?脣?蝔?蝣?)
+                            except Exception as e:
+                                # ?潛??航炊嚗?脣?蝔?蝣?                                meta = st.session_state.note_metadata
+                                data_manager.save_note(
+                                    user_id=st.session_state.user_id,
+                                    title=f"?? {meta.get('title', '蝑?')} - 瘜?擃頂??,
+                                    content=f"```mermaid\n{st.session_state.system_diagram}\n```",
+                                    category=meta.get('category', '?嗡?'),
+                                    tags=meta.get('tags', []) + ['瘜?擃頂??],
+                                    difficulty=meta.get('difficulty', '銝剔?')
+                                )
+                                st.warning(f"?? ?脣?????隤歹?撌脣摮?撘Ⅳ")
+                
+                with col_code:
+                    # ??蝔?蝣潔?頛??                    st.download_button(
+                        label="?? 銝?蝔?蝣?,
+                        data=st.session_state.system_diagram,
+                        file_name=f"{st.session_state.note_metadata.get('title', '瘜?擃頂??)}_system.mmd",
+                        mime="text/plain",
+                        use_container_width=True,
+                        key="download_system_code_extra"
+                    )
+                
+                with st.expander("?? ?亦? Mermaid 蝔?蝣?):
+                    st.code(st.session_state.system_diagram, language="mermaid")
+                  # ?湔?脣?蝑?嚗???AI ??嚗?        st.markdown("---")
+        st.markdown("### ?? ??亙摮?憪?閮?銝蝙??AI嚗?)
+        
+        if st.button("? ?湔?脣????批捆", use_container_width=True, key="save_raw"):
+            if content:
+                data_manager.save_note(
+                    user_id=st.session_state.user_id,
+                    title=title or f"{category} - 蝑?",
+                    content=content,
+                    category=category,
+                    tags=[t.strip() for t in tags.split(",")] if tags else [],
+                    difficulty="銝剔?"  # ?湔?脣???閮?閮凋葉蝑摨?                )
+                st.success("??蝑?撌脣摮?")
+            else:
+                st.warning("?? 隢撓?亙摰?)
+    
+    elif st.session_state.note_tab == 'ocr':
+        st.markdown("### ? ??/PDF 颲刻?")
+        st.markdown('<div class="info-box">? 銝????PDF嚗I ??儘霅蒂摰??批捆</div>', unsafe_allow_html=True)
+        
+        # 蝑?閮剖?嚗銝??
+        st.markdown("#### ?? 蝑?閮剖?")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            ocr_category = st.selectbox("?? 蝘", SUBJECTS, key="ocr_cat")
+        with col2:
+            ocr_note_type = st.selectbox("? 蝑?憿?", ["???渡?", "????", "獢?閫??"], key="ocr_type")
+        with col3:
+            ocr_tags = st.text_input("?儭?璅惜", placeholder="?券???", key="ocr_tags")
+        with col4:
+            ocr_difficulty = st.selectbox(
+                "? ??漲",
+                ["璆萇陛??, "蝪∪", "銝剔?", "?圈", "璆萄??],
+                index=2,
+                key="ocr_diff"
+            )
+        
+        st.markdown("---")
+        
+        uploaded_file = st.file_uploader("?豢?????PDF", type=['png', 'jpg', 'jpeg', 'pdf'], key="ocr_upload")
+        
+        if uploaded_file:
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                if uploaded_file.type != 'application/pdf':
+                    st.image(uploaded_file, caption="銝????, use_column_width=True)
+                else:
+                    st.info(f"?? 撌脖???PDF嚗uploaded_file.name}")
+            
+            with col2:
+                if st.button("?? 颲刻?銝衣???閮?, use_container_width=True, type="primary"):
+                    with st.spinner("? 颲刻?銝?.."):
+                        try:
+                            file_type = uploaded_file.type
+                            
+                            if 'pdf' in file_type:
+                                # PDF ??
+                                import fitz
+                                pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+                                
+                                full_text = ""
+                                for page_num in range(pdf_document.page_count):
+                                    page = pdf_document[page_num]
+                                    full_text += page.get_text()
+                                
+                                ocr_prompt = f"""隢?誑銝?PDF ?批捆???渡?蝑?嚗??祆???摮?銵刻牧??
+PDF ?批捆嚗?{full_text}
+
+隢??游??暹??摰對???”??摮牧?頛詨蝑??批捆?蝜?銝剜???""
+                                
+                                response = ai_core.model.generate_content(ocr_prompt)
+                                
+                            else:
+                                # ????
+                                import PIL.Image
+                                img = PIL.Image.open(uploaded_file)
+                                
+                                ocr_prompt = """隢儘霅??葉???摰對??????銵具”?潛?嚗??游??暹?蝑???
+閬?嚗?1. 颲刻????摮摰?2. 憒???銵剁?隢?餈啣?銵典摰?3. 憒??”?潘?隢???銵冽鞈?
+4. 靽?????瑽?撅斗活
+
+?芾撓?箇?閮摰嫘蝜?銝剜???""
+                                
+                                response = ai_core.model.generate_content([ocr_prompt, img])
+                            
+                            # ?脣?蝯?
+                            st.session_state.ocr_result = response.text
+                            st.session_state.ocr_metadata = {
+                                'title': f"颲刻? - {uploaded_file.name}",
+                                'category': ocr_category,
+                                'note_type': ocr_note_type,
+                                'tags': [t.strip() for t in ocr_tags.split(",")] if ocr_tags else ['OCR'],
+                                'difficulty': ocr_difficulty
+                            }
+                            st.rerun()
+                            
+                        except Exception as e:
+                            st.error(f"??颲刻?憭望?嚗e}")
+                            st.info("隢Ⅱ隤歇摰?嚗ip install PyMuPDF Pillow")
+        
+        # 憿舐內颲刻?蝯?
+        if 'ocr_result' in st.session_state:
+            st.markdown("---")
+            st.markdown("### ??颲刻?蝯?")
+            
+            # AI ??????
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                if st.button("??AI ????????, use_container_width=True, type="secondary"):
+                    with st.spinner("?? AI 甇??渡???..."):
+                        smoothed = ai_core.model.generate_content(
+                            f"""隢?隞乩? OCR 颲刻???摮??渡??????氬撘??摰嫘?
+閬?嚗?1. 靽格迤?臬????????2. 鋆?敹???暺泵??3. 雿輻?拍?挾?賢???
+4. 靽?????敺?隤?璁艙
+5. 銝?憿?閫???辣隡詨摰?6. 雿輻 Markdown ?澆?蝢???嚗?憿?銵具?擃?嚗?7. **??**: 摰???摰對?銝????瑚遙雿??8. **??**: ?湔頛詨?渡?敺??批捆嚗?閬?隞颱???賬?閮?牧??摮?
+{st.session_state.ocr_result}
+"""
+                        ).text
+                        st.session_state.smoothed_ocr = smoothed
+                        st.success("???渡?摰?嚗?)
+                        st.rerun()
+            
+            with col2:
+                if st.button("??儭?皜征蝯?", use_container_width=True):
+                    # 皜征???OCR ?賊???session state
+                    keys_to_delete = ['ocr_result', 'smoothed_ocr', 'ocr_metadata', 'ocr_upload']
+                    for key in keys_to_delete:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.success("??撌脫?蝛箸??摰對?")
+                    st.rerun()  # 蝘駁 sleep嚗??rerun
+            
+            # 憿舐內?批捆 - ?寧?拇?撠嚗蝺刻摩
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### ?? ??颲刻??批捆嚗蝺刻摩嚗?)
+                edited_original = st.text_area(
+                    "蝺刻摩???批捆",
+                    value=st.session_state.ocr_result,
+                    height=400,
+                    key="edit_ocr_original",
+                    label_visibility="collapsed"
+                )
+                # ?湔 session state
+                st.session_state.ocr_result = edited_original
+                
+                # ?脣???蝑???
+                if st.button("? ?脣???蝑?", use_container_width=True, type="secondary", key="save_ocr_original"):
+                    meta = st.session_state.ocr_metadata
+                    data_manager.save_note(
+                        user_id=st.session_state.user_id,
+                        title=meta['title'] + " (??)",
+                        content=edited_original,
+                        category=meta['category'],
+                        tags=meta['tags'],
+                        difficulty="銝剔?"
+                    )
+                    st.success("????蝑?撌脣摮?")
+            
+            with col2:
+                if 'smoothed_ocr' in st.session_state:
+                    st.markdown("#### ??AI ?渡?敺??批捆嚗蝺刻摩嚗?)
+                    edited_ai = st.text_area(
+                        "蝺刻摩 AI ?批捆",
+                        value=st.session_state.smoothed_ocr,
+                        height=400,
+                        key="edit_ocr_ai",
+                        label_visibility="collapsed"
+                    )
+                    # ?湔 session state
+                    st.session_state.smoothed_ocr = edited_ai
+                    
+                    # ?脣? AI 蝑???
+                    if st.button("? ?脣? AI 蝑?", use_container_width=True, type="primary", key="save_ocr_ai"):
+                        meta = st.session_state.ocr_metadata
+                        data_manager.save_note(
+                            user_id=st.session_state.user_id,
+                            title=meta['title'],
+                            content=edited_ai,
+                            category=meta['category'],
+                            tags=meta['tags'],
+                            difficulty="銝剔?"
+                        )
+                        st.success("??AI 蝑?撌脣摮?")
+                else:
+                    st.info("?? 暺?撌血?I ????????????AI ?渡??")
+    
+    elif st.session_state.note_tab == 'voice':
+        st.markdown("### ??儭?隤頛詨")
+        st.markdown('<div class="info-box">? 銝?瑼?頧?摮???蝑?</div>', unsafe_allow_html=True)
+        
+        # 蝑?閮剖?
+        st.markdown("#### ?? 蝑?閮剖?")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            voice_category = st.selectbox("?? 蝘", SUBJECTS, key="voice_cat")
+        with col2:
+            voice_note_type = st.selectbox("? 蝑?憿?", ["???渡?", "????", "獢?閫??"], key="voice_type")
+        with col3:
+            voice_tags = st.text_input("?儭?璅惜", placeholder="?券???", key="voice_tags")
+        with col4:
+            voice_difficulty = st.selectbox(
+                "? ??漲",
+                ["璆萇陛??, "蝪∪", "銝剔?", "?圈", "璆萄??],
+                index=2,
+                key="voice_diff"
+            )
+        
+        st.markdown("---")
+        
+        audio_file = st.file_uploader("銝?單?", type=['mp3', 'wav', 'm4a', 'ogg', 'webm'], key="audio_upload")
+        
+        if audio_file:
+            st.audio(audio_file)
+            
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("?? ?頧?摮?, use_container_width=True, type="primary"):
+                    # 雿輻 OpenAI Whisper API嚗蝡舐??穿?
+                    try:
+                        from openai import OpenAI
+                        import tempfile
+                        import os
+                        
+                        # ????OpenAI 摰Ｘ蝡?                        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+                        
+                        with st.spinner("??儭?甇?頧??單?..."):
+                            # ?脣?銝?瑼?冽?瑼?
+                            with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(audio_file.name)[1]) as tmp_file:
+                                tmp_file.write(audio_file.read())
+                                tmp_path = tmp_file.name
+                            
+                            try:
+                                # 雿輻 OpenAI Whisper API 頧?
+                                with open(tmp_path, "rb") as audio:
+                                    transcript = client.audio.transcriptions.create(
+                                        model="whisper-1",
+                                        file=audio,
+                                        language="zh"
+                                    )
+                                
+                                st.markdown("### ??頧?蝯?")
+                                st.markdown(transcript.text)
+                                st.session_state.voice_transcription = transcript.text
+                                st.caption("? 鞎餌嚗? $0.006/??")
+                                
+                            finally:
+                                # 皜??冽?瑼?
+                                if os.path.exists(tmp_path):
+                                    os.unlink(tmp_path)
+                    
+                    except ImportError:
+                        st.error("? 隤頧?摮??賡?閬?鋆?openai 憟辣")
+                        st.code("pip install openai", language="bash")
+                    except Exception as e:
+                        st.error(f"??頧?憭望?嚗str(e)}")
+                        if "OPENAI_API_KEY" in str(e) or "api_key" in str(e).lower():
+                            st.warning("?? 隢身摰?OPENAI_API_KEY ?啣?霈")
+                        if "WinError 2" in str(e) or "ffmpeg" in str(e).lower():
+                            st.warning("""
+                            ?? **ffmpeg ?芸?鋆??芸???PATH**
+                            
+                            隢?鋆?ffmpeg嚗?                            1. 銝?嚗ttps://www.gyan.dev/ffmpeg/builds/
+                            2. 閫??蝮桐蒂撠?bin 鞈?憭曉??亦頂蝯?PATH
+                            3. ?蝙??chocolatey: `choco install ffmpeg`
+                            4. ???蝯垢璈? Streamlit
+                            """)
+            
+            with col2:
+                if st.button("?? AI ?渡?蝑?", use_container_width=True, type="primary"):
+                    if 'voice_transcription' in st.session_state:
+                        with st.spinner("?? AI ?渡?銝?.."):
+                            # 雿輻?身憸冽
+                            ai_notes = ai_core.generate_ai_notes(
+                                st.session_state.voice_transcription, 
+                                voice_note_type, 
+                                "隢?蝎曄陛?撘???芯??敹?暺?
+                            )
+                            st.session_state.voice_notes = ai_notes
+                            st.success("???渡?摰?嚗?)
+                            st.rerun()
+                    else:
+                        st.warning("?? 隢??脰????唾?????)
+            
+            with col3:
+                if st.button("??儭?皜征蝯?", use_container_width=True, key="clear_voice_btn"):
+                    # 皜征????喟?? session state
+                    keys_to_delete = ['voice_transcription', 'voice_notes', 'audio_upload']
+                    for key in keys_to_delete:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    st.success("??撌脫?蝛箸??摰對?")
+                    st.rerun()
+            
+            # 憿舐內頧?蝯?嚗蝺刻摩嚗?            if 'voice_transcription' in st.session_state:
+                st.markdown("---")
+                st.markdown("### ?? 頧?蝯?嚗蝺刻摩嚗?)
+                edited_transcription = st.text_area(
+                    "頧???", 
+                    st.session_state.voice_transcription, 
+                    height=200, 
+                    key="voice_trans_edit"
+                )
+                st.session_state.voice_transcription = edited_transcription
+                
+                # ?脣???頧?
+                if st.button("? ?脣???頧?", use_container_width=True, type="secondary", key="save_raw_voice"):
+                    audio_name = audio_file.name.rsplit('.', 1)[0] if audio_file else "隤蝑?"
+                    data_manager.save_note(
+                        user_id=st.session_state.user_id,
+                        title=f"? {audio_name} (??)",
+                        content=edited_transcription,
+                        category=voice_category,
+                        tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['隤', '??'],
+                        difficulty=voice_difficulty
+                    )
+                    st.success("????頧?撌脣摮??臬?風?脰??澈???)
+                    # 蝘駁 st.rerun() ?踹???頛
+            
+            # 憿舐內?渡?敺?蝑?嚗蝺刻摩嚗?            if 'voice_notes' in st.session_state:
+                st.markdown("### ??AI ?渡?敺?蝑?嚗蝺刻摩嚗?)
+                edited_ai_notes = st.text_area(
+                    "蝺刻摩 AI 蝑?",
+                    st.session_state.voice_notes,
+                    height=300,
+                    key="voice_ai_edit"
+                )
+                st.session_state.voice_notes = edited_ai_notes
+                
+                # ?脣? AI 蝑?
+                if st.button("? ?脣? AI 蝑?", use_container_width=True, type="primary", key="save_voice"):
+                    audio_name = audio_file.name.rsplit('.', 1)[0] if audio_file else "隤蝑?"
+                    data_manager.save_note(
+                        user_id=st.session_state.user_id,
+                        title=f"? {audio_name}",
+                        content=edited_ai_notes,
+                        category=voice_category,
+                        tags=[t.strip() for t in voice_tags.split(",")] if voice_tags else ['隤', 'AI?渡?'],
+                        difficulty=voice_difficulty
+                    )
+                    st.success("??AI 蝑?撌脣摮??臬?風?脰??澈???)
+                    # 蝘駁 st.rerun() ?踹???頛
+
+# ==================== AI 鈭?摮貊? ====================
+def render_chat():
+    render_top_nav()
+    
+    st.markdown("## ? AI 鈭?摮貊?")
+    
+    # ????Quiz State
+    if 'quiz_data' not in st.session_state:
+        st.session_state.quiz_data = None
+    if 'quiz_answered' not in st.session_state:
+        st.session_state.quiz_answered = False
+    
+    # 璅∪??豢?
+    st.markdown("### ? ?豢?撠店璅∪?")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("?? ?璅∪?", use_container_width=True, key="btn_ref", 
+                    type="primary" if st.session_state.chat_mode == 'reference' else "secondary"):
+            st.session_state.chat_mode = 'reference'
+            st.session_state.chat_history = []
+            st.rerun()
+    with col2:
+        if st.button("?? ?????", use_container_width=True, key="btn_soc",
+                    type="primary" if st.session_state.chat_mode == 'socratic' else "secondary"):
+            st.session_state.chat_mode = 'socratic'
+            st.session_state.chat_history = []
+            st.rerun()
+    with col3:
+        if st.button("? ?剝??嗥??", use_container_width=True, key="btn_game",
+                    type="primary" if st.session_state.chat_mode == 'game' else "secondary"):
+            st.session_state.chat_mode = 'game'
+            st.session_state.chat_history = []
+            st.session_state.quiz_data = None
+            st.session_state.quiz_answered = False
+            st.rerun()
+    
+    mode_desc = {
+        'reference': '?? **?璅∪?**嚗?亙?蝑???敺?憿?撘?賊?瘜??靘?雿輻 RAG ???亥?摨恬?',
+        'socratic': '?? **?????**嚗??撘?雿??楛?圾',
+        'game': '? **?剝??嗥?**嚗?雿?蝑?鞈?摨思葉?粹?嚗葫閰血?瘜??暺???摨?
+    }
+    st.markdown(f'<div class="info-box">{mode_desc[st.session_state.chat_mode]}</div>', unsafe_allow_html=True)
+    
+    # ==================== ?剝??嗥?璅∪? UI ====================
+    if st.session_state.chat_mode == 'game':
+        st.markdown("### ? 皜祇???")
+        
+        # ?????蝘?歇?粹?????        if 'quiz_selected_subject' not in st.session_state:
+            st.session_state.quiz_selected_subject = "?券"
+        if 'used_quiz_notes' not in st.session_state:
+            st.session_state.used_quiz_notes = set()  # 閮?撌脖蝙?函?蝑? ID
+        if 'quiz_start_time' not in st.session_state:
+            st.session_state.quiz_start_time = None
+        if 'game_started' not in st.session_state:
+            st.session_state.game_started = False
+        
+        # 憒??????嚗＊蝷粹?憪??        if not st.session_state.game_started:
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                quiz_subject = st.selectbox("?? ?豢??粹?蝘", ["?券"] + SUBJECTS, key="quiz_subject_select")
+            with col2:
+                st.write("")  # 撠?
+                st.write("")
+                if st.button("?? ??皜祇?", type="primary", use_container_width=True):
+                    st.session_state.game_started = True
+                    st.session_state.quiz_selected_subject = quiz_subject
+                    st.session_state.quiz_data = None
+                    st.session_state.quiz_answered = False
+                    st.session_state.used_quiz_notes = set()
+                    st.rerun()
+            
+            # 憿舐內蝯梯?
+            st.markdown("---")
+            st.markdown("### ?? 雿?蝑?蝯梯?")
+            all_notes = data_manager.get_all_notes(st.session_state.user_id)
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("蝮賜?閮", len(all_notes))
+            with col2:
+                categories = set([n.get('category') for n in all_notes if n.get('category')])
+                st.metric("瘨菔?蝘", len(categories))
+            with col3:
+                st.metric("?臬憿", len(all_notes))
+            
+            # ?迫?瑁?嚗?蝜潛?敺銝?            st.stop()
+        
+        else:
+            # ??脰?銝?            # 蝚砌?銵?蝘?豢???+ 蝣箏???
+            col_subject, col_confirm = st.columns([3, 1])
+            with col_subject:
+                st.markdown("#### ?? ?粹?蝘")
+                quiz_subject_game = st.selectbox(
+                    "?豢?蝘",
+                    ["?券"] + SUBJECTS,
+                    index=(["?券"] + SUBJECTS).index(st.session_state.quiz_selected_subject) if st.session_state.quiz_selected_subject in (["?券"] + SUBJECTS) else 0,
+                    key="quiz_subject_game_select",
+                    label_visibility="collapsed"
+                )
+            
+            with col_confirm:
+                st.write("")
+                st.write("")
+                if st.button("??蝣箏?蝘", use_container_width=True, type="primary", key="confirm_subject_btn"):
+                    if quiz_subject_game != st.session_state.quiz_selected_subject:
+                        st.session_state.quiz_selected_subject = quiz_subject_game
+                        st.session_state.quiz_data = None
+                        st.session_state.quiz_answered = False
+                        st.success(f"??撌脣???quiz_subject_game}????)
+                        st.rerun()
+            
+            # 蝚砌?銵??批??嚗像銵???+ 閮?券＊蝷?            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                if st.button("?? ??憿?, type="secondary", use_container_width=True, key="change_question_btn"):
+                    st.session_state.quiz_data = None
+                    st.session_state.quiz_answered = False
+                    st.session_state.quiz_start_time = None
+                    st.rerun()
+            
+            with col2:
+                if st.button("?? ?蔭憿澈", type="secondary", use_container_width=True, key="reset_quiz_btn"):
+                    st.session_state.used_quiz_notes = set()
+                    st.session_state.quiz_data = None
+                    st.session_state.quiz_answered = False
+                    st.success("??憿澈撌脤?蝵殷?")
+                    st.rerun()
+            
+            with col3:
+                # 雿輻 st.empty() 撘瑕?湔憿舐內
+                counter_placeholder = st.empty()
+                current_count = len(st.session_state.used_quiz_notes)
+                counter_placeholder.markdown(f"### ?? 撌脣憿n# {current_count}")
+            
+            st.markdown("---")
+            
+            # 憒??????殷???憿
+            if not st.session_state.quiz_data:
+                # ??啗??詨嚗 spinner 銋?嚗?                all_notes = data_manager.get_all_notes(st.session_state.user_id)
+                if st.session_state.quiz_selected_subject != "?券":
+                    filtered_notes = [n for n in all_notes if n.get('category') == st.session_state.quiz_selected_subject]
+                else:
+                    filtered_notes = all_notes
+                
+                available_notes = [n for n in filtered_notes if n['id'] not in st.session_state.used_quiz_notes]
+                
+                if not available_notes and filtered_notes:
+                    st.warning("?? ????桅撌脣??隢???蝵桅?摨怒??圈?憪?)
+                    st.stop()
+                
+                # ?捱摰??典??閮蒂?湔閮??                note_content = None
+                source_difficulty = "銝剔?"
+                selected_note = None
+                
+                # 瘙箏??粹?靘?嚗??澈蝑? (70%) ??AI?冽? (30%)
+                if available_notes and random.random() > 0.3:
+                    # 敺??澈?豢?蝑??粹?
+                    selected_note = random.choice(available_notes)
+                    note_content = f"璅?嚗selected_note.get('title')}\n?批捆嚗selected_note.get('content')}"
+                    source_difficulty = selected_note.get('difficulty', '銝剔?')
+                    
+                    # ?湔閮??                    print(f"\n=== [鞈?摨怠憿 ?粹????? {len(st.session_state.used_quiz_notes)} ===")
+                    st.session_state.used_quiz_notes.add(selected_note['id'])
+                    print(f"=== 瘛餃?蝑? ID: {selected_note['id']} ===")
+                    print(f"=== ?粹?敺??? {len(st.session_state.used_quiz_notes)} ===")
+                    print(f"=== ?嗅???D: {st.session_state.used_quiz_notes} ===\n")
+                else:
+                    # AI?冽??粹?嚗鞈?摨怎蝑???30% 璈?嚗?                    random_id = f"random_{int(time.time() * 1000)}"
+                    print(f"\n=== [AI?冽??粹?] ?粹????? {len(st.session_state.used_quiz_notes)} ===")
+                    st.session_state.used_quiz_notes.add(random_id)
+                    print(f"=== 瘛餃??冽? ID: {random_id} ===")
+                    print(f"=== ?粹?敺??? {len(st.session_state.used_quiz_notes)} ===")
+                    print(f"=== ?嗅???D: {st.session_state.used_quiz_notes} ===\n")
+                
+                # ??憿
+                with st.spinner("?? 甇??粹?..."):
+                    quiz_data = ai_core.generate_quiz_question(
+                        content=note_content, 
+                        category=st.session_state.quiz_selected_subject if st.session_state.quiz_selected_subject != "?券" else None
+                    )
+                    quiz_data['difficulty'] = source_difficulty
+                    st.session_state.quiz_data = quiz_data
+                    st.session_state.quiz_answered = False
+                
+                print(f"=== 憿??摰?嚗??erun ===")
+                print(f"=== ?蝯??? {len(st.session_state.used_quiz_notes)} ===\n")
+                # 撘瑕?頛
+                st.rerun()
+            
+            # 憿舐內憿嚗????閮?嚗?            if st.session_state.quiz_data:
+                q_data = st.session_state.quiz_data
+                
+                # 憿舐內憿
+                st.markdown(f"""
+                <div style="background: white; padding: 2rem; border-radius: 12px; border-left: 5px solid #6b7280; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 1rem;">
+                    <h3 style="color: #1f2937; margin-bottom: 0.5rem;">{q_data.get('question', '憿霈?隤?)}</h3>
+                    <div style="color: #6b7280; font-size: 0.9rem;">
+                        <span>? ??漲嚗q_data.get('difficulty', '銝剔?')}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                # 撌脣?蝑?銝＊蝷箏
+                st.markdown(f"""
+                <div style="background: white; padding: 2rem; border-radius: 12px; border-left: 5px solid #6b7280; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 1rem;">
+                    <h3 style="color: #1f2937; margin-bottom: 0.5rem;">{q_data.get('question', '憿霈?隤?)}</h3>
+                    <div style="color: #6b7280; font-size: 0.9rem;">
+                        <span>? ??漲嚗q_data.get('difficulty', '銝剔?')}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            # ?賊??
+            options = q_data.get('options', [])
+            
+            # 憒?撌脩???嚗＊蝷箇???            if st.session_state.quiz_answered:
+                correct_idx = q_data.get('answer_index', 0)
+                user_choice_idx = st.session_state.get('user_choice_idx', -1)
+                
+                for i, opt in enumerate(options):
+                    if i == correct_idx:
+                        # 甇?Ⅱ蝑?銝摰?憿舐內?箇???                        st.success(f"??{opt} (甇?Ⅱ蝑?)")
+                    elif i == user_choice_idx:
+                        # ?冽?賊??獢＊蝷箇蝝
+                        st.error(f"??{opt} (雿??豢?)")
+                    else:
+                        # ?嗡??賊?
+                        st.info(f"??{opt}")
+                
+                st.markdown("---")
+                st.markdown("### ? 閫??")
+                st.markdown(f"""
+                <div style="background: #f3f4f6; padding: 1.5rem; border-radius: 10px;">
+                    {q_data.get('explanation', '?∟圾??)}
+                </div>
+                """, unsafe_allow_html=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # 銝?憿???- ?湔?箔?銝憿?銝??詨
+                if st.button("?? 銝?憿?, type="primary", use_container_width=True):
+                    # ?身??誑閫貊?圈??桃???                    st.session_state.quiz_data = None
+                    st.session_state.quiz_answered = False
+                    st.rerun()
+                    
+            else:
+                # ????嚗＊蝷箸???                for i, opt in enumerate(options):
+                    if st.button(opt, key=f"quiz_opt_{i}", use_container_width=True):
+                        st.session_state.quiz_answered = True
+                        st.session_state.user_choice_idx = i
+                        st.rerun()
+
+    # ==================== 銝?砍?閰望芋撘?(????憭?UI) ====================
+    else:
+        # 撠店???        st.markdown("### ? 撠店?")
+        
+        chat_container = st.container()
+        
+        with chat_container:
+            if not st.session_state.chat_history:
+                welcome = {
+                    'reference': '雿末嚗??臭???敺???拇? ?? ?遙雿?敺?憿?臭誑??嚗???撠霅澈?暹??賊??摰孵?蝑???,
+                    'socratic': '霈????靘蝝Ｘ?敺?敹??? 隢?閮湔?雿閮?隞暻潔蜓憿?',
+                }
+                if st.session_state.chat_mode in welcome:
+                    st.markdown(f'<div class="chat-bubble-ai">?? {welcome[st.session_state.chat_mode]}</div>', unsafe_allow_html=True)
+            
+            for msg in st.session_state.chat_history:
+                if msg['role'] == 'user':
+                    st.markdown(f'<div class="chat-bubble-user">{msg["content"]}</div>', unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="chat-bubble-ai">?? {msg["content"]}</div>', unsafe_allow_html=True)
+        
+        # 頛詨?
+        user_input = st.text_area("? 頛詨閮...", height=120, 
+                                  key=f"chat_input_area_{st.session_state.chat_input_clear}", 
+                                  placeholder="頛詨雿?瘜???...")
+        
+        col1, col2 = st.columns([5, 1])
+        with col2:
+            send = st.button("? ?潮?, use_container_width=True, type="primary")
+        
+        if send and user_input:
+            st.session_state.chat_history.append({'role': 'user', 'content': user_input})
+            
+            with st.spinner("?? ?葉..."):
+                if st.session_state.chat_mode == 'reference':
+                    search_results = ai_core.search_knowledge_base(user_input, top_k=3)
+                    response = ai_core.answer_question_with_rag(user_input, search_results)
+                elif st.session_state.chat_mode == 'socratic':
+                    response = ai_core.chat_with_ai(user_input, st.session_state.chat_history, 'socratic')
+                else:
+                    response = "?航炊嚗????迤蝣箇?璅∪?"
+            
+            st.session_state.chat_history.append({'role': 'assistant', 'content': response})
+            st.session_state.chat_input_clear += 1
+            st.rerun()
+        
+        # ?批??
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("??儭?皜撠店", use_container_width=True):
+                st.session_state.chat_history = []
+                st.rerun()
+        with col2:
+            if st.session_state.chat_history:
+                chat_export = "\n\n".join([f"{'?? if m['role']=='user' else 'AI'}: {m['content']}" for m in st.session_state.chat_history])
+                st.download_button("?? 銝?撠店閮?", chat_export, "撠店閮?.txt", use_container_width=True)
+
+# ==================== ?箸?? ====================
+def render_search():
+    render_top_nav()
+    
+    st.markdown("## ?? ?箸??蝟餌絞")
+    st.markdown('<div class="info-box">?? 雿輻 RAG 隤儔??嚗?閫????憿????曉??賊???敺霅?/div>', unsafe_allow_html=True)
+    
+    # ?游之??撠?
+    query = st.text_area("?? 頛詨?????萄?", height=120, placeholder="靘?嚗?暻潭?瘜?瑽?靘菜?銵嚗?)
+    
+    col1, col2, col3 = st.columns([3, 2, 1])
+    with col1:
+        category_filter = st.selectbox("?? 蝭拚蝘", ["?券"] + SUBJECTS)
+    with col2:
+        difficulty_filter = st.selectbox("? ??漲蝭拚", ["?券", "璆萇陛??, "蝪∪", "銝剔?", "?圈", "璆萄??])
+    with col3:
+        max_results = st.number_input("蝯???, 1, 10, 5)
+    
+    if st.button("?? ????", type="primary", use_container_width=True) and query:
+        with st.spinner("?? ??銝?.."):
+            cat = None if category_filter == "?券" else category_filter
+            original_results = ai_core.search_knowledge_base(query, top_k=max_results, category=cat)
+            
+            # ?寞???漲蝭拚蝯?
+            if difficulty_filter != "?券" and original_results:
+                results = [r for r in original_results if r['metadata'].get('difficulty') == difficulty_filter]
+            else:
+                results = original_results
+        
+        # 瑼Ｘ??蝯?嚗?撠?嚗?        if original_results:
+            if results:
+                st.success(f"???曉 {len(results)} ?????)
+                
+                for i, r in enumerate(results):
+                    with st.expander(f"?? {r['metadata'].get('title', f'蝯? {i+1}')} - {r['metadata'].get('category', '?芸?憿?)} ({r['score']:.0%} ?賊?)", expanded=(i==0)):
+                        st.markdown(f"**?賊?摨?*嚗r['score']:.0%}")
+                        st.markdown(f"**??**嚗r['metadata'].get('category', '?芸?憿?)}")
+                        st.markdown(f"**??漲**嚗??{r['metadata'].get('difficulty', '銝剔?')}")
+                        if r['metadata'].get('tags'):
+                            tags_str = " ".join([f"`{tag}`" for tag in r['metadata'].get('tags', []) if tag])
+                            if tags_str.strip():
+                                st.markdown(f"**璅惜**嚗tags_str}")
+                        st.markdown("---")
+                        st.markdown(r['content'])
+            else:
+                # ??憪???鋡恍摨衣祟?豢?鈭?                st.warning(f"?? ?曉 {len(original_results)} ?????雿??泵?difficulty_filter}?摨衣?蝑?")
+                st.info("? ?內嚗?閰阡??具摨行??嗡???漲蝑?")
+        else:
+            st.warning("?? 瘝??曉?賊?蝯?嚗??岫?嗡??摮?)
+
+# ==================== 銴??刻 ====================
+def render_review():
+    render_top_nav()
+    
+    st.markdown("## ?? ?箸銴??刻")
+    
+    # 銴?閮剖??Ｘ
+    if 'show_review_settings' not in st.session_state:
+        st.session_state.show_review_settings = False
+    
+    # 銴???閮剖?嚗?嗉絲嚗?    st.markdown("### ?? 銴???閮剖?")
+    
+    col_btn1, col_btn2 = st.columns([1, 5])
+    with col_btn1:
+        if st.button("??撅?" if not st.session_state.show_review_settings else "???嗉絲", use_container_width=True):
+            st.session_state.show_review_settings = not st.session_state.show_review_settings
+    
+    if st.session_state.show_review_settings:
+        st.markdown("---")
+        
+        # 雿輻 Airtable ??身摰恣??        from review_settings import ReviewSettings, PRESET_TEMPLATES
+        settings_manager = ReviewSettings(st.session_state.user_id)
+        
+        # 憿舐內?身璅⊥?賊?
+        st.markdown("#### ?? ?身銴?璅⊥")
+        
+        template_options = {
+            "intensive": "? 撖?銴?嚗??銵嚗?,
+            "standard": "?? 璅?銴?嚗像銵∠?銴??餌?嚗?,
+            "relaxed": "?? 頛?銴?嚗????瘀?"
+        }
+        
+        # 蝪∪????芷＊蝷粹?閮剜芋?輯牧??        for template_id, template_name in template_options.items():
+            with st.expander(template_name):
+                template_data = PRESET_TEMPLATES[template_id]
+                st.markdown(f"**隤芣?**嚗template_data['description']}")
+                st.markdown("**??閮剖?**嚗?)
+                for level, intervals in template_data['intervals'].items():
+                    st.markdown(f"- {level}嚗' ??'.join(map(str, intervals))} 憭?)
+        
+        st.markdown("---")
+        st.info("?對? ?桀?雿輻璅?銴?璅∪?????芾???嚗???AIRTABLE_SETTINGS_SETUP.md 撱箇? ReviewSettings Table??)
+                    
+                    # ????
+                    btn_col1, btn_col2, btn_col3 = st.columns(3)
+                    
+                    with btn_col1:
+                        # ????嚗????舐???函?嚗?                        if selected_custom != active_template:
+                            if st.button("??", key="switch_to_custom", use_container_width=True):
+                                if settings_manager.set_active_template(selected_custom):
+                                    st.success(f"??撌脣?? {template['name']}嚗?)
+                                    st.rerun()
+                    
+                    with btn_col2:
+                        # 蝺刻摩??
+                        if st.button("?? 蝺刻摩", key="edit_custom", use_container_width=True):
+                            st.session_state.editing_template = selected_custom
+                            st.rerun()
+                    
+                    with btn_col3:
+                        # ?芷??
+                        if st.button("??儭?, key="delete_custom", use_container_width=True):
+                            if settings_manager.delete_custom_template(selected_custom):
+                                st.success("??璅⊥撌脣?歹?")
+                                st.rerun()
+                
+                # 蝺刻摩璅⊥
+                if 'editing_template' in st.session_state and st.session_state.editing_template in custom_templates:
+                    st.markdown("---")
+                    st.markdown("**?? 蝺刻摩璅⊥**")
+                    
+                    editing_key = st.session_state.editing_template
+                    editing_template = custom_templates[editing_key]
+                    
+                    new_name = st.text_input(
+                        "璅⊥?迂",
+                        value=editing_template['name'],
+                        key="edit_template_name"
+                    )
+                    
+                    st.info("? **?內**嚗撓?交?甈∟?蝧???憭拇嚗??????憒?2,6,14,28,60\n\n**?瑕漲銝?**嚗誨銵刻?蝧活?詻?)
+                    
+                    edited_intervals = {}
+                    levels = ["摰蝎暸?, "敺???, "憭扯閮?", "???啗情", "摰銝?敺?]
+                    intervals_valid = True
+                    
+                    for level in levels:
+                        current_intervals = editing_template['intervals'].get(level, [2, 6, 14, 28, 60])
+                        interval_str = ','.join([str(i) for i in current_intervals])
+                        
+                        user_input = st.text_input(
+                            f"{level}",
+                            value=interval_str,
+                            key=f"edit_interval_{level}",
+                            help="頛詨??憭拇嚗????嚗?-60憭抬??瑕漲銝?嚗?
+                        )
+                        
+                        try:
+                            intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
+                            if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
+                                edited_intervals[level] = intervals
+                            else:
+                                st.error(f"??{level}嚗????1-60憭拐???)
+                                intervals_valid = False
+                        except:
+                            st.error(f"??{level}嚗撘隤歹?隢蝙?券????摮?)
+                            intervals_valid = False
+                    
+                    edit_col1, edit_col2 = st.columns(2)
+                    with edit_col1:
+                        if st.button("? ?脣?靽格", use_container_width=True, type="primary", key="save_edit_template"):
+                            if not new_name:
+                                st.error("??隢撓?交芋?踹?蝔?)
+                            elif new_name != editing_template['name'] and new_name in [t['name'] for t in custom_templates.values()]:
+                                st.error("??璅⊥?迂撌脣???)
+                            elif not intervals_valid:
+                                st.error("??隢耨甇???身摰隤?)
+                            else:
+                                # ?芷?芋?選??啣?靽格敺?璅⊥
+                                settings_manager.delete_custom_template(editing_key)
+                                if settings_manager.add_custom_template(new_name, edited_intervals):
+                                    # 憒??舐???函?璅⊥嚗?啣??函???                                    if active_template == editing_key:
+                                        settings_manager.set_active_template(new_name)
+                                    st.session_state.editing_template = None
+                                    st.success("??璅⊥撌脫?堆?")
+                                    st.rerun()
+                                else:
+                                    st.error("???湔憭望?")
+                    
+                    with edit_col2:
+                        if st.button("????", use_container_width=True, key="cancel_edit_template"):
+                            st.session_state.editing_template = None
+                            st.rerun()
+            else:
+                st.info("撠?芾?璅⊥")
+            
+            # ?啣??芾?璅⊥嚗宏?支??孵???嚗?            st.markdown("")  # ??
+            st.markdown("**???啣??芾?璅⊥**")
+            
+            with st.expander("暺?撅??啣?"):
+                new_template_name = st.text_input(
+                    "璅⊥?迂",
+                    placeholder="靘?嚗???銵",
+                    key="new_template_name"
+                )
+                
+                st.info("? **?內**嚗撓?交?甈∟?蝧???憭拇嚗??????憒?2,6,14,28,60\n\n**?瑕漲銝?**嚗誨銵刻?蝧活?詻隞亥身摰遙??甈∴?靘? 10 甈～?0 甈⊿?臭誑??)
+                
+                custom_intervals = {}
+                levels = ["摰蝎暸?, "敺???, "憭扯閮?", "???啗情", "摰銝?敺?]
+                intervals_valid = True
+                
+                for level in levels:
+                    user_input = st.text_input(
+                        f"{level}",
+                        value="2,6,14,28,60",
+                        key=f"new_interval_{level}",
+                        help="頛詨??憭拇嚗????嚗?-60憭抬??瑕漲銝?嚗?
+                    )
+                    
+                    try:
+                        intervals = [int(x.strip()) for x in user_input.split(',') if x.strip()]
+                        if all(1 <= i <= 60 for i in intervals) and len(intervals) > 0:
+                            custom_intervals[level] = intervals
+                        else:
+                            st.error(f"??{level}嚗????1-60憭拐???)
+                            intervals_valid = False
+                    except:
+                        st.error(f"??{level}嚗撘隤歹?隢蝙?券????摮?)
+                        intervals_valid = False
+                
+                if st.button("? ?脣??唳芋??, use_container_width=True, type="primary", key="save_new_template"):
+                    if not new_template_name:
+                        st.error("??隢撓?交芋?踹?蝔?)
+                    elif new_template_name in PRESET_TEMPLATES:
+                        st.error("??璅⊥?迂銝??閮剜芋?輻??)
+                    elif new_template_name in custom_templates:
+                        st.error("??璅⊥?迂撌脣???)
+                    elif not intervals_valid:
+                        st.error("??隢耨甇???身摰隤?)
+                    else:
+                        if settings_manager.add_custom_template(new_template_name, custom_intervals):
+                            st.success(f"??璅⊥?new_template_name}?歇?啣?嚗?)
+                            st.rerun()
+                        else:
+                            st.error("???啣?憭望?")
+        
+        st.markdown("---")
+    
+    # 閮蝔漲蝭拚
+    st.markdown("### ? 蝭拚璇辣")
+    
+    # ?脣?蝭拚???    if 'active_filter' not in st.session_state:
+        st.session_state.active_filter = "?券(敺?蝧?"
+    
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        memory_filter = st.selectbox(
+            "?豢?閮蝔漲",
+            ["?券(敺?蝧?", "摰銝?敺?, "???啗情", "憭扯閮?", "敺???, "摰蝎暸?, "?芾?蝧?"],
+            key="memory_filter_select",
+            help="?券(敺?蝧?=瘥銴?璅∪? | ?嗡?=?亦?閰脤??交???閮?
+        )
+    with col2:
+        st.write("")  # 撠?
+        if st.button("??蝣箏?蝭拚", use_container_width=True, type="primary"):
+            st.session_state.active_filter = memory_filter
+            st.rerun()
+    
+    # 雿輻撌脩Ⅱ摰?蝭拚璇辣
+    active_filter = st.session_state.active_filter
+    
+    # ?????閮?    all_notes = data_manager.get_all_notes(st.session_state.user_id)
+    all_due_notes = data_manager.get_due_notes(st.session_state.user_id)
+    
+    # ?寞?蝭拚璇辣瘙箏?憿舐內璅∪?
+    if active_filter == "?券(敺?蝧?":
+        # ========== 瘥銴?璅∪?嚗?銵券＊蝷綽?==========
+        filtered_notes = all_due_notes
+        
+        # ?銝活銴?????嚗餈??
+        filtered_notes = sorted(filtered_notes, key=lambda x: x.get('next_review', '9999-12-31'))
+        
+        st.markdown(f'<div class="info-box">?? 隞敺?蝧?{len(filtered_notes)} ??閮?/div>', unsafe_allow_html=True)
+        
+        if filtered_notes:
+            # ?”璅∪?嚗＊蝷箸???銴?蝑?
+            for i, note in enumerate(filtered_notes):
+                last_memory_display = {
+                    "摰銝?敺?: "??摰銝?敺?, "???啗情": "?? ???啗情", "憭扯閮?": "?? 憭扯閮?",
+                    "敺???: "??敺???, "摰蝎暸?: "?? 摰蝎暸?,
+                    "?活": "??摰銝?敺?, "?圈": "?? ???啗情", "?臬末": "?? 憭扯閮?",
+                    "摰寞?": "??敺???, "蝎暸?: "?? 摰蝎暸?, "": "?? ?芾?蝧?"
+                }
+                last_memory = last_memory_display.get(note.get('last_memory_level', ''), '?? ?芾?蝧?')
+                
+                # ?澆??遣蝡???潭?憿＊蝷?                created_time = note.get('created_at', '')
+                created_display = created_time[:10] if created_time else 'N/A'
+                
+                with st.expander(f"?? {note.get('title', '?⊥?憿?)} | ?? {created_display}", expanded=False):
+                    st.markdown(f"""
+                    <div style="margin-bottom: 1rem;">
+                        <span class="tag">{note.get('category', '?芸?憿?)}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">?? 撌脰?蝧?{note.get('review_count', 0)} 甈?/span>
+                        <span style="color: #6b7280; margin-left: 1rem;">? ??漲: {note.get('difficulty', '銝剔?')}</span>
+                        <span style="color: #6b7280; margin-left: 1rem;">? 銝活: {last_memory}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # 銝活銴???
+                    next_review = note.get('next_review', '')

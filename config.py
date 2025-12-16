@@ -17,6 +17,7 @@ print(f"檔案存在: {env_path.exists()}")
 class Config:
     # API 金鑰
     GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
     PINECONE_API_KEY = os.getenv('PINECONE_API_KEY', '')
     AIRTABLE_API_KEY = os.getenv('AIRTABLE_API_KEY', '')
     AIRTABLE_BASE_ID = os.getenv('AIRTABLE_BASE_ID', '')
@@ -32,11 +33,13 @@ class Config:
     
     # Pinecone
     PINECONE_INDEX_NAME = 'legal-exam'
-    EMBEDDING_DIMENSION = 768
+    EMBEDDING_DIMENSION = 1536  # OpenAI text-embedding-3-small
     
-    # Gemini - 使用最新最快的 2.0 模型
+    # Gemini - 用於文字生成
     GEMINI_MODEL = 'models/gemini-2.0-flash-exp'
-    EMBEDDING_MODEL = 'models/text-embedding-004'
+    
+    # OpenAI - 用於 embedding (因為 Gemini 對中文有問題)
+    # 需要在 .env 設定 OPENAI_API_KEY
     
     # 系統參數
     MAX_SEARCH_RESULTS = 5
