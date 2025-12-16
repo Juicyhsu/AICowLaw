@@ -65,13 +65,21 @@ class AICore:
         print(f"✅ Pinecone 索引已連接: {index_name}")
         return index
     
-    def generate_embedding(self, text: str) -> List[float]:
-        """生成文字嵌入向量"""
+    def generate_embedding(self, text: str, task_type: str = "retrieval_document") -> List[float]:
+        """生成文字嵌入向量
+        
+        Args:
+            text: 要生成向量的文字
+            task_type: 任務類型
+                - "retrieval_document": 用於儲存文檔（預設）
+                - "retrieval_query": 用於搜尋查詢
+                - "semantic_similarity": 用於語義相似度比較
+        """
         try:
             result = genai.embed_content(
                 model=Config.EMBEDDING_MODEL,
                 content=text,
-                task_type="retrieval_document"
+                task_type=task_type
             )
             return result['embedding']
         except Exception as e:
@@ -120,14 +128,21 @@ class AICore:
             return False
     
     def delete_from_knowledge_base(self, note_id: str) -> bool:
-        """從知識庫刪除內容"""
+        """從知識庫刪除內容（使用 metadata 過濾）"""
         try:
-            self.index.delete(ids=[note_id])
+            # 使用 metadata 過濾刪除（因為儲存時的 ID 格式是 note_{note_id}_{hash}）
+            self.index.delete(filter={"note_id": note_id})
             print(f"✅ 已從知識庫刪除: {note_id}")
             return True
         except Exception as e:
-            print(f"❌ 從知識庫刪除失敗: {e}")
-            return False
+            # 如果 metadata 過濾失敗，嘗試直接刪除（向後相容）
+            try:
+                self.index.delete(ids=[note_id])
+                print(f"✅ 已從知識庫刪除（使用 ID）: {note_id}")
+                return True
+            except Exception as e2:
+                print(f"❌ 從知識庫刪除失敗: {e}, {e2}")
+                return False
     
     def search_knowledge_base(self, query: str, top_k: int = None, 
                              category: str = None) -> List[Dict]:
@@ -136,7 +151,8 @@ class AICore:
             top_k = Config.MAX_SEARCH_RESULTS
         
         try:
-            query_embedding = self.generate_embedding(query)
+            # 搜尋時使用 retrieval_query task_type（與儲存時的 retrieval_document 配對）
+            query_embedding = self.generate_embedding(query, task_type="retrieval_query")
             filter_dict = {'category': category} if category else None
             
             results = self.index.query(

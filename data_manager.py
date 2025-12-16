@@ -104,8 +104,20 @@ class DataManager:
                 print("❌ 權限錯誤：無法刪除其他使用者的筆記")
                 return False
             
+            # 刪除 Airtable 筆記
             self.table.delete(note_id)
-            print(f"✅ 筆記已刪除：{note_id}")
+            print(f"✅ 筆記已從 Airtable 刪除：{note_id}")
+            
+            # 同步刪除 Pinecone 向量資料（避免智慧搜尋顯示已刪除筆記）
+            try:
+                from ai_core import AICore
+                ai_core = AICore()
+                # 使用 metadata 過濾刪除（因為 Pinecone ID 格式不同）
+                ai_core.index.delete(filter={"note_id": note_id})
+                print(f"✅ 筆記已從 Pinecone 刪除：{note_id}")
+            except Exception as e:
+                print(f"⚠️ 從 Pinecone 刪除失敗（不影響筆記刪除）: {e}")
+            
             return True
         except Exception as e:
             print(f"刪除錯誤: {e}")

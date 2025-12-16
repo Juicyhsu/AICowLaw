@@ -31,10 +31,30 @@ def rebuild_pinecone_index():
         print()
         print("🗑️  步驟 1: 刪除所有向量...")
         
-        # 刪除所有向量
-        index.delete(delete_all=True)
+        # 先檢查索引狀態
+        try:
+            stats = index.describe_index_stats()
+            total_vectors = stats.get('total_vector_count', 0)
+            
+            if total_vectors == 0:
+                print("✅ 索引已經是空的，跳過刪除")
+            else:
+                print(f"   發現 {total_vectors} 個向量")
+                # 刪除所有向量
+                try:
+                    index.delete(delete_all=True, namespace="")
+                    print("✅ 所有向量已刪除")
+                except Exception as e:
+                    if "Namespace not found" in str(e) or "404" in str(e):
+                        print("✅ 索引已經是空的（namespace 不存在）")
+                    else:
+                        raise e
+        except Exception as e:
+            if "Namespace not found" in str(e) or "404" in str(e):
+                print("✅ 索引已經是空的（namespace 不存在）")
+            else:
+                raise e
         
-        print("✅ 所有向量已刪除")
         print()
         print("⏳ 等待 5 秒讓索引更新...")
         time.sleep(5)

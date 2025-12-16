@@ -34,8 +34,8 @@ class Config:
     PINECONE_INDEX_NAME = 'legal-exam'
     EMBEDDING_DIMENSION = 768
     
-    # Gemini - 使用免費額度充足的模型
-    GEMINI_MODEL = 'gemini-2.5-flash'
+    # Gemini - 使用更快的實驗版模型
+    GEMINI_MODEL = 'gemini-2.0-flash-exp'
     EMBEDDING_MODEL = 'models/text-embedding-004'
     
     # 系統參數
