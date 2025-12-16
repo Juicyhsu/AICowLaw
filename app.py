@@ -1664,7 +1664,8 @@ def render_note():
                                 pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
                                 
                                 full_text = ""
-                                for page_num in range(pdf_document.page_count):
+                                page_count = pdf_document.page_count  # 先儲存頁數
+                                for page_num in range(page_count):
                                     page = pdf_document[page_num]
                                     page_text = page.get_text()
                                     if page_text.strip():  # 只加入非空頁面
@@ -1677,7 +1678,7 @@ def render_note():
                                     st.error("❌ PDF 中沒有可讀取的文字內容（可能是掃描版 PDF）")
                                     st.info("💡 提示：如果是掃描版 PDF，請先轉換為圖片後使用圖片辨識功能")
                                 else:
-                                    st.success(f"✅ 成功讀取 {pdf_document.page_count} 頁，共 {len(full_text)} 字")
+                                    st.success(f"✅ 成功讀取 {page_count} 頁，共 {len(full_text)} 字")
                                     
                                     ocr_prompt = f"""請整理以下 PDF 內容成完整的筆記。
 
