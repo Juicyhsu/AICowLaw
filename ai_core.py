@@ -169,8 +169,8 @@ class AICore:
             
             filtered_results = []
             for match in results['matches']:
-                # 提高閾值到 0.85，極度嚴格，寧缺勿濫
-                if match['score'] >= 0.85:
+                # 降低閾值到 0.7，更實用的標準
+                if match['score'] >= 0.7:
                     filtered_results.append({
                         'score': match['score'],
                         'content': match['metadata'].get('full_content', 
@@ -181,14 +181,14 @@ class AICore:
             filtered_results = filtered_results[:top_k]
             
             if filtered_results:
-                print(f"[OK] Found {len(filtered_results)} highly relevant results (threshold >= 0.85)")
+                print(f"[OK] Found {len(filtered_results)} highly relevant results (threshold >= 0.7)")
             else:
-                print(f"[Warning] No results with relevance >= 0.85")
+                print(f"[Warning] No results with relevance >= 0.7")
                 # 顯示最高分數供診斷
                 if results.get('matches'):
                     max_score = results['matches'][0]['score']
                     print(f"   Max score: {max_score:.3f} (below threshold)")
-                    print(f"   Suggestion: Run rebuild_pinecone_index.py")
+                    print(f"   Suggestion: Vectors may need rebuilding")
             
             return filtered_results
             
