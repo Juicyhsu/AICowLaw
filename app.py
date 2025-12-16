@@ -1156,8 +1156,7 @@ def render_note():
                             content=st.session_state.generated_notes,
                             category=meta['category'],
                             tags=meta['tags'],
-                            difficulty=meta['difficulty'],
-                            test_mode=test_mode  # 傳遞測試模式
+                            difficulty=meta['difficulty']
                         )
                     
                     if add_to_kb:
